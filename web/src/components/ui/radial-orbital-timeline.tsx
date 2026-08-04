@@ -61,8 +61,14 @@ export default function RadialOrbitalTimeline({
   const [rotationAngle, setRotationAngle] = useState(0);
   const [autoRotate, setAutoRotate] = useState(true);
   const [radius, setRadius] = useState(200);
+  // Node positions are floating-point and the radius is measured from the
+  // container, so nothing orbital can be server-rendered without a hydration
+  // mismatch. The ring mounts on the client instead.
+  const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const orbitRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setMounted(true), []);
 
   // Orbit radius adapts to the container so the ring never overflows on mobile.
   useEffect(() => {
@@ -146,12 +152,14 @@ export default function RadialOrbitalTimeline({
         </div>
 
         {/* Orbit ring */}
-        <div
-          className="absolute rounded-full border border-white/10"
-          style={{ width: radius * 2, height: radius * 2 }}
-        />
+        {mounted && (
+          <div
+            className="absolute rounded-full border border-white/10"
+            style={{ width: radius * 2, height: radius * 2 }}
+          />
+        )}
 
-        {timelineData.map((item, index) => {
+        {mounted && timelineData.map((item, index) => {
           const position = calculateNodePosition(index, timelineData.length);
           const isExpanded = expandedId === item.id;
           const isRelated = relatedToExpanded.includes(item.id);
