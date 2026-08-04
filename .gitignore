@@ -1,0 +1,23 @@
+# deps & build
+node_modules/
+.next/
+dist/
+out/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# env & secrets — never commit real values
+.env
+.env.*
+!.env.example
+
+# internal working notes (not part of the public submission)
+CLAUDE.md
+.claude/
+
+# logs & OS noise
+*.log
+.DS_Store
+Thumbs.db
