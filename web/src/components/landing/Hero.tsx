@@ -1,100 +1,79 @@
 /**
- * Landing hero — aurora wash over a blueprint grid, headline, and the two
- * things a judge should be able to do immediately: open the Studio or watch
- * the relay run.
+ * Landing hero.
+ *
+ * Deliberately restrained: neutral black, a fine engineering grid, and one
+ * piece of oversized display type that carries its own light. No colour
+ * washes, no gradient text — the only glow comes from the words themselves.
  */
 
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Code2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight } from "lucide-react";
 
 const STATS = [
   { value: "3", label: "agent lanes" },
-  { value: "18", label: "DataHub MCP tools" },
+  { value: "18", label: "MCP tools" },
   { value: "827", label: "catalog entities" },
-  { value: "100%", label: "schema-validated output" },
+  { value: "100%", label: "schema-validated" },
 ];
 
 export function Hero() {
   return (
-    <section className="relative isolate overflow-hidden">
-      {/* Aurora wash */}
+    <section className="relative isolate overflow-hidden bg-[#060607]">
+      {/* Fine engineering grid */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
-      >
-        <div className="absolute -top-40 left-1/4 h-[36rem] w-[36rem] animate-[aurora_18s_ease-in-out_infinite] rounded-full bg-sky-500/20 blur-[120px]" />
-        <div className="absolute -top-24 right-1/4 h-[30rem] w-[30rem] animate-[aurora_22s_ease-in-out_infinite_reverse] rounded-full bg-violet-500/20 blur-[120px]" />
-        <div className="absolute top-40 left-1/2 h-[26rem] w-[26rem] -translate-x-1/2 animate-[aurora_26s_ease-in-out_infinite] rounded-full bg-emerald-400/10 blur-[120px]" />
-      </div>
+        className="absolute inset-0 -z-20 bg-[linear-gradient(to_right,rgba(255,255,255,0.075)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.075)_1px,transparent_1px)] bg-[size:56px_56px]"
+      />
+      {/* Vignette: let the grid dissolve at the edges */}
       <div
         aria-hidden
-        className="bg-grid pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_at_center,black_25%,transparent_75%)]"
+        className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_75%_65%_at_50%_35%,transparent_0%,#060607_85%)]"
+      />
+      {/* Seam into the page background below */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-b from-transparent to-slate-950"
       />
 
-      <div className="mx-auto flex max-w-4xl flex-col items-center px-6 pt-28 pb-24 text-center">
-        <Image
-          src="/logo.png"
-          alt=""
-          width={72}
-          height={72}
-          priority
-          className="mb-8 animate-[float_7s_ease-in-out_infinite] rounded-2xl"
-        />
-
-        <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300 backdrop-blur">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+      <div className="mx-auto max-w-5xl px-6 pt-28 pb-20 text-center sm:pt-32">
+        <p className="text-[10px] font-medium tracking-[0.3em] text-white/25 uppercase">
           Built for the DataHub Agent Hackathon
-        </span>
+        </p>
 
-        <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-          <span className="text-shimmer">Data pipelines</span>
-          <br />
-          that read the catalog first.
+        <h1 className="mt-8 text-[clamp(2.75rem,8.5vw,6.75rem)] leading-[0.95] font-bold tracking-tight text-balance text-white [text-shadow:0_0_60px_rgba(255,255,255,0.35),0_0_120px_rgba(255,255,255,0.12)]">
+          Ground before you generate.
         </h1>
 
-        <p className="mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-          Baton is a visual builder for metadata-grounded code generation. Drag
-          the stages, or let an agent compose them for you — every generated dbt
-          model is validated against the real schemas and lineage in your
-          DataHub catalog before it ever reaches a pull request.
+        <p className="mx-auto mt-7 max-w-3xl text-base leading-relaxed text-balance text-white/45 sm:text-lg">
+          Three agents read your DataHub catalog — real schemas, real lineage —
+          before a line of SQL exists, then validate every model against it.
         </p>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-          <Button asChild size="lg" className="font-semibold">
-            <Link href="/studio">
-              Open the Studio
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-          <Button
-            asChild
-            variant="outline"
-            size="lg"
-            className="border-white/15"
+          <Link
+            href="/studio"
+            className="inline-flex items-center rounded-lg bg-white px-6 py-3 text-sm font-semibold text-black shadow-[0_0_50px_rgba(255,255,255,0.28)] transition-shadow hover:shadow-[0_0_70px_rgba(255,255,255,0.42)]"
           >
-            <Link href="#relay">See how the relay works</Link>
-          </Button>
-          <Button asChild variant="ghost" size="lg" className="text-slate-400">
-            <a
-              href="https://github.com/EndPx/baton"
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Code2 className="mr-2 h-4 w-4" />
-              Source
-            </a>
-          </Button>
+            Open the Studio
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+          <Link
+            href="#relay"
+            className="inline-flex items-center rounded-lg border border-white/15 bg-white/[0.02] px-6 py-3 text-sm font-medium text-white/80 transition-colors hover:border-white/30 hover:text-white"
+          >
+            See how the relay works
+          </Link>
         </div>
 
-        <dl className="mt-16 grid w-full grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/10 bg-white/5 sm:grid-cols-4">
+        <dl className="mt-24 flex flex-wrap items-center justify-center divide-x divide-white/10">
           {STATS.map((stat) => (
-            <div key={stat.label} className="bg-slate-950/60 px-4 py-5">
-              <dt className="text-2xl font-bold tracking-tight text-white">
+            <div key={stat.label} className="px-6 py-2 sm:px-10">
+              <dt className="text-2xl font-semibold tracking-tight text-white/90">
                 {stat.value}
               </dt>
-              <dd className="mt-1 text-xs text-slate-400">{stat.label}</dd>
+              <dd className="mt-1 text-[10px] tracking-[0.18em] text-white/30 uppercase">
+                {stat.label}
+              </dd>
             </div>
           ))}
         </dl>

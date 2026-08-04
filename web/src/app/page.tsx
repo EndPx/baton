@@ -3,7 +3,6 @@
  * visitors should understand what Baton does before they are handed a canvas.
  */
 
-import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -62,43 +61,43 @@ const BUILD_CARDS = [
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <nav className="sticky top-0 z-50 border-b border-white/5 bg-slate-950/70 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-          <Link href="/" className="flex items-center gap-2.5">
-            <Image
-              src="/logo.png"
-              alt="Baton"
-              width={28}
-              height={28}
-              className="rounded-md"
-            />
-            <span className="font-bold tracking-tight">Baton</span>
+      <header className="absolute inset-x-0 top-0 z-50">
+        <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-5">
+          <Link
+            href="/"
+            className="justify-self-start text-lg font-bold tracking-tight text-white [text-shadow:0_0_24px_rgba(255,255,255,0.45)]"
+          >
+            BATON
           </Link>
-          <div className="flex items-center gap-1 text-sm">
-            <Link
-              href="#relay"
-              className="hidden rounded-md px-3 py-2 text-slate-400 transition-colors hover:text-slate-100 sm:block"
-            >
-              The relay
+
+          <nav className="hidden items-center gap-8 justify-self-center text-sm text-white/45 md:flex">
+            <Link href="#relay" className="transition-colors hover:text-white">
+              Relay
             </Link>
-            <Link
-              href="#agents"
-              className="hidden rounded-md px-3 py-2 text-slate-400 transition-colors hover:text-slate-100 sm:block"
-            >
-              The team
+            <Link href="#agents" className="transition-colors hover:text-white">
+              Agents
             </Link>
-            <Link
-              href="#fit"
-              className="hidden rounded-md px-3 py-2 text-slate-400 transition-colors hover:text-slate-100 md:block"
-            >
-              Is it for you?
+            <Link href="#fit" className="transition-colors hover:text-white">
+              Use cases
             </Link>
-            <Button asChild size="sm" className="ml-2 font-semibold">
-              <Link href="/studio">Open Studio</Link>
-            </Button>
-          </div>
+            <a
+              href="https://github.com/EndPx/baton"
+              target="_blank"
+              rel="noreferrer"
+              className="transition-colors hover:text-white"
+            >
+              Source
+            </a>
+          </nav>
+
+          <Link
+            href="/studio"
+            className="justify-self-end rounded-lg border border-white/25 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white hover:text-black"
+          >
+            Open Studio
+          </Link>
         </div>
-      </nav>
+      </header>
 
       <Hero />
       <PipelineOrbit />
