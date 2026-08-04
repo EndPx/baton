@@ -15,8 +15,10 @@ import {
   Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AgentLanes } from "@/components/landing/AgentLanes";
 import { Hero } from "@/components/landing/Hero";
 import { PipelineOrbit } from "@/components/landing/PipelineOrbit";
+import { WhoItsFor } from "@/components/landing/WhoItsFor";
 
 const PROBLEM_CARDS = [
   {
@@ -80,10 +82,16 @@ export default function LandingPage() {
               The relay
             </Link>
             <Link
-              href="#build"
+              href="#agents"
               className="hidden rounded-md px-3 py-2 text-slate-400 transition-colors hover:text-slate-100 sm:block"
             >
-              Build
+              The team
+            </Link>
+            <Link
+              href="#fit"
+              className="hidden rounded-md px-3 py-2 text-slate-400 transition-colors hover:text-slate-100 md:block"
+            >
+              Is it for you?
             </Link>
             <Button asChild size="sm" className="ml-2 font-semibold">
               <Link href="/studio">Open Studio</Link>
@@ -94,6 +102,7 @@ export default function LandingPage() {
 
       <Hero />
       <PipelineOrbit />
+      <AgentLanes />
 
       {/* Why it matters */}
       <section className="border-t border-white/5 py-20">
@@ -151,6 +160,8 @@ export default function LandingPage() {
           ))}
         </div>
       </section>
+
+      <WhoItsFor />
 
       {/* CTA */}
       <section className="border-t border-white/5 py-20">
