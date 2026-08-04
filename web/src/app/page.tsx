@@ -1,212 +1,204 @@
-"use client";
-
 /**
- * Baton — main page: goal prompt → live trace flow → deliverable panel.
- * The only user inputs are the goal, a write-back toggle, and (later)
- * entity disambiguation. Connection config never reaches the client.
+ * Landing page. The Studio itself lives at /studio — judges and first-time
+ * visitors should understand what Baton does before they are handed a canvas.
  */
 
-import { useCallback, useRef, useState } from "react";
 import Image from "next/image";
-import { TraceFlow } from "@/components/TraceFlow";
-import { DEMO_GOAL, DEMO_RESULT, DEMO_STEPS } from "@/lib/demo";
-import type { PublishResult, TraceEvent } from "@/lib/baton";
+import Link from "next/link";
+import {
+  ArrowRight,
+  Boxes,
+  MousePointerSquareDashed,
+  ShieldCheck,
+  Sparkles,
+  TriangleAlert,
+  Undo2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Hero } from "@/components/landing/Hero";
+import { PipelineOrbit } from "@/components/landing/PipelineOrbit";
 
-type RunState = "idle" | "running" | "done" | "error";
+const PROBLEM_CARDS = [
+  {
+    icon: TriangleAlert,
+    title: "The model invents columns",
+    body: "Ask a general coding assistant for a dbt model and it will confidently reference customer_email on a table that has no such column. It has never seen your warehouse.",
+    accent: "text-red-400",
+  },
+  {
+    icon: ShieldCheck,
+    title: "So we validate, not vibe",
+    body: "Baton resolves every column against the schema DataHub actually reports, using sqlglot's schema-aware qualifier. Failures become a targeted correction, not a shrug.",
+    accent: "text-sky-400",
+  },
+  {
+    icon: Undo2,
+    title: "And the knowledge stays",
+    body: "The run ends by writing provenance back into the catalog. The next engineer — or the next agent — starts from what this one learned instead of rediscovering it.",
+    accent: "text-emerald-400",
+  },
+];
 
-/** Minimal SSE parser over a fetch body stream. */
-async function consumeSse(
-  body: ReadableStream<Uint8Array>,
-  onEvent: (event: string, data: string) => void,
-): Promise<void> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buffer.indexOf("\n\n")) !== -1) {
-      const chunk = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
-      let event = "message";
-      let data = "";
-      for (const line of chunk.split("\n")) {
-        if (line.startsWith("event: ")) event = line.slice(7).trim();
-        else if (line.startsWith("data: ")) data += line.slice(6);
-      }
-      if (data) onEvent(event, data);
-    }
-  }
-}
+const BUILD_CARDS = [
+  {
+    icon: MousePointerSquareDashed,
+    title: "Drag the stages",
+    body: "Compose the relay on a canvas from a palette of DataHub-native stages: search, schema, lineage, generate, validate, write back.",
+  },
+  {
+    icon: Boxes,
+    title: "Start from a template",
+    body: "Prebuilt pipelines for the jobs people actually repeat — dbt model from two tables, documentation backfill, lineage-aware migration.",
+  },
+  {
+    icon: Sparkles,
+    title: "Or just describe it",
+    body: "State the goal in plain language and let Baton lay out the pipeline for you. Then edit any stage before you run it.",
+  },
+];
 
-export default function Home() {
-  const [goal, setGoal] = useState("");
-  const [writeBack, setWriteBack] = useState(true);
-  const [state, setState] = useState<RunState>("idle");
-  const [events, setEvents] = useState<TraceEvent[]>([]);
-  const [result, setResult] = useState<PublishResult | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const runningRef = useRef(false);
-
-  const run = useCallback(async () => {
-    if (runningRef.current || !goal.trim()) return;
-    runningRef.current = true;
-    setState("running");
-    setEvents([]);
-    setResult(null);
-    setErrorMsg(null);
-    try {
-      const res = await fetch("/api/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal, writeBack }),
-      });
-      if (!res.ok || !res.body) {
-        throw new Error(`Request failed: HTTP ${res.status}`);
-      }
-      await consumeSse(res.body, (event, data) => {
-        if (event === "trace") {
-          setEvents((prev) => [...prev, JSON.parse(data) as TraceEvent]);
-        } else if (event === "result") {
-          setResult(JSON.parse(data) as PublishResult);
-          setState("done");
-        } else if (event === "error") {
-          const payload = JSON.parse(data) as { message: string };
-          setErrorMsg(payload.message);
-          setState("error");
-        }
-      });
-      setState((s) => (s === "running" ? "done" : s));
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : String(err));
-      setState("error");
-    } finally {
-      runningRef.current = false;
-    }
-  }, [goal, writeBack]);
-
-  const runDemo = useCallback(async () => {
-    if (runningRef.current) return;
-    runningRef.current = true;
-    setGoal(DEMO_GOAL);
-    setState("running");
-    setEvents([]);
-    setResult(null);
-    setErrorMsg(null);
-    let seq = 0;
-    for (const step of DEMO_STEPS) {
-      await new Promise((r) => setTimeout(r, step.delay));
-      setEvents((prev) => [
-        ...prev,
-        { ...step.event, id: `demo_${++seq}`, ts: Date.now() },
-      ]);
-    }
-    setResult(DEMO_RESULT);
-    setState("done");
-    runningRef.current = false;
-  }, []);
-
+export default function LandingPage() {
   return (
-    <div className="flex h-screen flex-col bg-slate-950 text-slate-100">
-      <header className="flex items-center gap-3 border-b border-slate-800 px-5 py-3">
-        <Image
-          src="/logo.png"
-          alt="Baton logo"
-          width={32}
-          height={32}
-          className="rounded-md"
-          priority
-        />
-        <h1 className="text-lg font-bold tracking-tight">Baton</h1>
-        <span className="text-xs text-slate-400">
-          a metadata-grounded codegen relay for DataHub
-        </span>
-      </header>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <nav className="sticky top-0 z-50 border-b border-white/5 bg-slate-950/70 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image
+              src="/logo.png"
+              alt="Baton"
+              width={28}
+              height={28}
+              className="rounded-md"
+            />
+            <span className="font-bold tracking-tight">Baton</span>
+          </Link>
+          <div className="flex items-center gap-1 text-sm">
+            <Link
+              href="#relay"
+              className="hidden rounded-md px-3 py-2 text-slate-400 transition-colors hover:text-slate-100 sm:block"
+            >
+              The relay
+            </Link>
+            <Link
+              href="#build"
+              className="hidden rounded-md px-3 py-2 text-slate-400 transition-colors hover:text-slate-100 sm:block"
+            >
+              Build
+            </Link>
+            <Button asChild size="sm" className="ml-2 font-semibold">
+              <Link href="/studio">Open Studio</Link>
+            </Button>
+          </div>
+        </div>
+      </nav>
 
-      <div className="flex gap-3 border-b border-slate-800 px-5 py-3">
-        <input
-          className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm outline-none placeholder:text-slate-500 focus:border-sky-500"
-          placeholder='e.g. "generate a dbt model joining orders and customers, filtered to the last 90 days"'
-          value={goal}
-          onChange={(e) => setGoal(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && run()}
-          disabled={state === "running"}
-        />
-        <label className="flex items-center gap-2 text-xs text-slate-300">
-          <input
-            type="checkbox"
-            checked={writeBack}
-            onChange={(e) => setWriteBack(e.target.checked)}
-            disabled={state === "running"}
-          />
-          Write back to DataHub
-        </label>
-        <button
-          className="rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold hover:bg-sky-500 disabled:opacity-40"
-          onClick={run}
-          disabled={state === "running" || !goal.trim()}
-        >
-          {state === "running" ? "Running…" : "Run"}
-        </button>
-        <button
-          className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-40"
-          onClick={runDemo}
-          disabled={state === "running"}
-          title="Replay a canned trace to preview the UI (no backend calls)"
-        >
-          ▶ Demo
-        </button>
-      </div>
+      <Hero />
+      <PipelineOrbit />
 
-      <main className="flex min-h-0 flex-1">
-        <section className="min-w-0 flex-[3] border-r border-slate-800">
-          {events.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-slate-500">
-              The live trace of Context → Codegen → Publisher will appear here.
-            </div>
-          ) : (
-            <TraceFlow events={events} />
-          )}
-        </section>
-
-        <aside className="flex min-w-0 flex-[2] flex-col overflow-y-auto p-4">
-          <h2 className="mb-2 text-sm font-bold text-slate-300">Deliverable</h2>
-          {errorMsg && (
-            <div className="mb-3 rounded-lg border border-red-800 bg-red-950 p-3 text-xs text-red-200">
-              {errorMsg}
-            </div>
-          )}
-          {!result && !errorMsg && (
-            <p className="text-xs text-slate-500">
-              Generated dbt files will appear here when the relay finishes.
-            </p>
-          )}
-          {result?.files.map((f) => (
-            <div key={f.name} className="mb-4">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="font-mono text-xs text-sky-400">{f.name}</span>
-                <button
-                  className="rounded bg-slate-800 px-2 py-1 text-[10px] hover:bg-slate-700"
-                  onClick={() => navigator.clipboard.writeText(f.content)}
-                >
-                  Copy
-                </button>
-              </div>
-              <pre className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900 p-3 text-[11px] leading-relaxed">
-                {f.content}
-              </pre>
+      {/* Why it matters */}
+      <section className="border-t border-white/5 py-20">
+        <div className="mx-auto max-w-3xl px-6 text-center">
+          <p className="text-xs font-semibold tracking-[0.2em] text-sky-400">
+            WHY IT MATTERS
+          </p>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+            Generated data code usually fails for one boring reason.
+          </h2>
+        </div>
+        <div className="mx-auto mt-12 grid max-w-5xl gap-4 px-6 md:grid-cols-3">
+          {PROBLEM_CARDS.map((card) => (
+            <div
+              key={card.title}
+              className="rounded-xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-white/20"
+            >
+              <card.icon className={`h-5 w-5 ${card.accent}`} />
+              <h3 className="mt-4 font-semibold">{card.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                {card.body}
+              </p>
             </div>
           ))}
-          {result && result.writeBack.enabled && (
-            <p className="text-[11px] text-emerald-400">
-              ✓ Provenance written back: {result.writeBack.taggedUrns.length}{" "}
-              dataset(s) tagged in DataHub
-            </p>
-          )}
-        </aside>
-      </main>
+        </div>
+      </section>
+
+      {/* Build it your way */}
+      <section id="build" className="border-t border-white/5 py-20">
+        <div className="mx-auto max-w-3xl px-6 text-center">
+          <p className="text-xs font-semibold tracking-[0.2em] text-violet-400">
+            THE STUDIO
+          </p>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+            Three ways to build a pipeline.
+          </h2>
+          <p className="mt-4 text-sm leading-relaxed text-slate-400">
+            The palette is deliberately narrow: every stage is a DataHub
+            operation or a step that depends on one. This is a catalog-native
+            builder, not a general workflow engine.
+          </p>
+        </div>
+        <div className="mx-auto mt-12 grid max-w-5xl gap-4 px-6 md:grid-cols-3">
+          {BUILD_CARDS.map((card) => (
+            <div
+              key={card.title}
+              className="rounded-xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-white/20"
+            >
+              <card.icon className="h-5 w-5 text-violet-300" />
+              <h3 className="mt-4 font-semibold">{card.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                {card.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="border-t border-white/5 py-20">
+        <div className="mx-auto max-w-2xl px-6 text-center">
+          <h2 className="text-3xl font-bold tracking-tight">
+            Watch the baton move.
+          </h2>
+          <p className="mt-4 text-sm text-slate-400">
+            Every node lights up from a real tool call — no decorative
+            animation. Run the demo trace or point it at your own catalog.
+          </p>
+          <Button asChild size="lg" className="mt-8 font-semibold">
+            <Link href="/studio">
+              Open the Studio
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </section>
+
+      <footer className="border-t border-white/5 py-10">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-6 text-center text-xs text-slate-500">
+          <p>
+            Baton — a metadata-grounded codegen relay for{" "}
+            <a
+              href="https://datahub.com"
+              className="text-slate-400 underline-offset-4 hover:underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              DataHub
+            </a>
+            . Apache 2.0.
+          </p>
+          <p>
+            Built for the{" "}
+            <a
+              href="https://datahub.devpost.com/"
+              className="text-slate-400 underline-offset-4 hover:underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              DataHub Agent Hackathon
+            </a>
+            . UI primitives from shadcn/ui (MIT).
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
