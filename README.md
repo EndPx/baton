@@ -1,6 +1,12 @@
+<p align="center">
+  <img src="assets/logo-mark.png" alt="Baton logo" width="140" />
+</p>
+
 # Baton
 
 **A metadata-grounded codegen relay for DataHub.**
+
+🔗 **Live demo:** [baton-roan.vercel.app](https://baton-roan.vercel.app) — click **▶ Demo** to watch the relay animate.
 
 Baton is a multi-agent pipeline that turns a natural-language goal — *"generate a dbt model joining orders and customers, filtered to the last 90 days"* — into a validated, PR-ready dbt model, grounded in what your [DataHub](https://datahub.com) catalog actually knows: real schemas, real lineage, real ownership.
 

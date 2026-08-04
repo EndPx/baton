@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useRef, useState } from "react";
+import Image from "next/image";
 import { TraceFlow } from "@/components/TraceFlow";
 import { DEMO_GOAL, DEMO_RESULT, DEMO_STEPS } from "@/lib/demo";
 import type { PublishResult, TraceEvent } from "@/lib/baton";
@@ -110,7 +111,14 @@ export default function Home() {
   return (
     <div className="flex h-screen flex-col bg-slate-950 text-slate-100">
       <header className="flex items-center gap-3 border-b border-slate-800 px-5 py-3">
-        <span className="text-xl">🥍</span>
+        <Image
+          src="/logo.png"
+          alt="Baton logo"
+          width={32}
+          height={32}
+          className="rounded-md"
+          priority
+        />
         <h1 className="text-lg font-bold tracking-tight">Baton</h1>
         <span className="text-xs text-slate-400">
           a metadata-grounded codegen relay for DataHub
