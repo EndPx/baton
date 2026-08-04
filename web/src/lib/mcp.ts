@@ -8,6 +8,7 @@
  * Never import this from a client component — it reads secrets from env.
  */
 
+import "server-only";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 

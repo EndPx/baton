@@ -8,6 +8,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { TraceFlow } from "@/components/TraceFlow";
+import { DEMO_GOAL, DEMO_RESULT, DEMO_STEPS } from "@/lib/demo";
 import type { PublishResult, TraceEvent } from "@/lib/baton";
 
 type RunState = "idle" | "running" | "done" | "error";
@@ -85,6 +86,27 @@ export default function Home() {
     }
   }, [goal, writeBack]);
 
+  const runDemo = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    setGoal(DEMO_GOAL);
+    setState("running");
+    setEvents([]);
+    setResult(null);
+    setErrorMsg(null);
+    let seq = 0;
+    for (const step of DEMO_STEPS) {
+      await new Promise((r) => setTimeout(r, step.delay));
+      setEvents((prev) => [
+        ...prev,
+        { ...step.event, id: `demo_${++seq}`, ts: Date.now() },
+      ]);
+    }
+    setResult(DEMO_RESULT);
+    setState("done");
+    runningRef.current = false;
+  }, []);
+
   return (
     <div className="flex h-screen flex-col bg-slate-950 text-slate-100">
       <header className="flex items-center gap-3 border-b border-slate-800 px-5 py-3">
@@ -119,6 +141,14 @@ export default function Home() {
           disabled={state === "running" || !goal.trim()}
         >
           {state === "running" ? "Running…" : "Run"}
+        </button>
+        <button
+          className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-40"
+          onClick={runDemo}
+          disabled={state === "running"}
+          title="Replay a canned trace to preview the UI (no backend calls)"
+        >
+          ▶ Demo
         </button>
       </div>
 
