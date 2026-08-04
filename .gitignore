@@ -16,6 +16,7 @@ venv/
 # internal working notes (not part of the public submission)
 CLAUDE.md
 .claude/
+.omc/
 
 # logs & OS noise
 *.log
