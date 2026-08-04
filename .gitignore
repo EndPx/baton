@@ -22,3 +22,6 @@ CLAUDE.md
 *.log
 .DS_Store
 Thumbs.db
+baton-landing.png
+baton-studio-builder.png
+.playwright-mcp/

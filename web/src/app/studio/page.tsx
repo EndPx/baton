@@ -10,10 +10,12 @@ import { useCallback, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { TraceFlow } from "@/components/TraceFlow";
+import { Builder } from "@/components/studio/Builder";
 import { DEMO_GOAL, DEMO_RESULT, DEMO_STEPS } from "@/lib/demo";
 import type { PublishResult, TraceEvent } from "@/lib/baton";
 
 type RunState = "idle" | "running" | "done" | "error";
+type Tab = "build" | "run";
 
 /** Minimal SSE parser over a fetch body stream. */
 async function consumeSse(
@@ -43,6 +45,7 @@ async function consumeSse(
 }
 
 export default function StudioPage() {
+  const [tab, setTab] = useState<Tab>("build");
   const [goal, setGoal] = useState("");
   const [writeBack, setWriteBack] = useState(true);
   const [state, setState] = useState<RunState>("idle");
@@ -123,11 +126,31 @@ export default function StudioPage() {
           />
           <h1 className="text-lg font-bold tracking-tight">Baton</h1>
         </Link>
-        <span className="text-xs text-slate-400">
+        <span className="hidden text-xs text-slate-400 sm:inline">
           a metadata-grounded codegen relay for DataHub
         </span>
+
+        <div className="ml-auto flex rounded-lg border border-slate-800 p-0.5">
+          {(["build", "run"] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`rounded-md px-4 py-1.5 text-xs font-semibold capitalize transition-colors ${
+                tab === t
+                  ? "bg-slate-800 text-slate-100"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
       </header>
 
+      {tab === "build" && <Builder />}
+
+      {tab === "run" && (
+        <>
       <div className="flex gap-3 border-b border-slate-800 px-5 py-3">
         <input
           className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm outline-none placeholder:text-slate-500 focus:border-sky-500"
@@ -210,6 +233,8 @@ export default function StudioPage() {
           )}
         </aside>
       </main>
+        </>
+      )}
     </div>
   );
 }
