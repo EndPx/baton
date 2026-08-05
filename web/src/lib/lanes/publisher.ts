@@ -104,10 +104,15 @@ export async function runPublisherLane(
 
     for (const urn of urns) {
       try {
-        const res = await callTool("add_tags", {
-          urns: [urn],
-          tag_name: BATON_TAG,
-        });
+        // Contract from the live sidecar: tag_urns + entity_urns, both URNs.
+        const res = await callTool(
+          "add_tags",
+          {
+            tag_urns: [`urn:li:tag:${BATON_TAG}`],
+            entity_urns: [urn],
+          },
+          { tolerateError: true }, // collected per-URN below
+        );
         if (res.isError) {
           errors.push(`add_tags failed for ${urn}: ${res.raw.slice(0, 120)}`);
         } else {

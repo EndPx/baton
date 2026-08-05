@@ -68,6 +68,7 @@ export interface ToolCallResult<T> {
 export async function callTool<T = unknown>(
   name: string,
   args: Record<string, unknown>,
+  options: { tolerateError?: boolean } = {},
 ): Promise<ToolCallResult<T>> {
   const client = await getMcpClient();
   const result = await client.callTool({ name, arguments: args });
@@ -78,6 +79,15 @@ export async function callTool<T = unknown>(
     .map((c) => c.text)
     .join("\n");
 
+  const isError = result.isError === true;
+
+  // A tool that rejected our arguments must not look like an empty result.
+  // Baton once sent `dataset_urn` to list_schema_fields, which wants `urn`;
+  // the validation error was swallowed and every table reported 0 columns.
+  if (isError && !options.tolerateError) {
+    throw new Error(`MCP tool "${name}" failed: ${raw.slice(0, 300)}`);
+  }
+
   let data: T | null = null;
   try {
     data = JSON.parse(raw) as T;
@@ -85,5 +95,5 @@ export async function callTool<T = unknown>(
     // non-JSON tool output — leave data null, raw still carries the text
   }
 
-  return { data, raw, isError: result.isError === true };
+  return { data, raw, isError };
 }

@@ -246,8 +246,10 @@ export async function runContextLane(
       label: `MCP list_schema_fields(${entity.name})`,
       data: { tool: "list_schema_fields", urn: entity.urn },
     });
+    // The tool's parameter is `urn`, not `dataset_urn` — verified against the
+    // live sidecar's tools/list contract.
     const schema = await callTool<SchemaFieldsResponse>("list_schema_fields", {
-      dataset_urn: entity.urn,
+      urn: entity.urn,
     });
     const fields = schema.data?.fields ?? schema.data?.schema_fields ?? [];
     const tableName = tableNameFromUrn(entity.urn);
@@ -266,11 +268,23 @@ export async function runContextLane(
       data: { table: tableName, columns: schemaMap[tableName] },
     });
   }
+  // Grounding is the product. Continuing with an empty schema map would hand
+  // the model a blank slate and call the result "grounded".
+  const totalColumns = Object.values(schemaMap).reduce(
+    (sum, cols) => sum + Object.keys(cols).length,
+    0,
+  );
+  if (totalColumns === 0) {
+    throw new Error(
+      `No schema metadata found for ${entities.map((e) => e.name).join(", ")} — nothing to ground the generated SQL against.`,
+    );
+  }
+
   emit({
     lane: "context",
     node: "fetch_schema",
     type: "node_complete",
-    label: "Schemas fetched",
+    label: `Schemas fetched — ${totalColumns} columns across ${Object.keys(schemaMap).length} table(s)`,
   });
 
   // --- Node: fetch_lineage (best-effort) ---
@@ -290,10 +304,11 @@ export async function runContextLane(
       data: { tool: "get_lineage_paths_between" },
     });
     try {
-      const res = await callTool("get_lineage_paths_between", {
-        source_urn: entities[0].urn,
-        target_urn: entities[1].urn,
-      });
+      const res = await callTool(
+        "get_lineage_paths_between",
+        { source_urn: entities[0].urn, target_urn: entities[1].urn },
+        { tolerateError: true }, // no path between two tables is normal
+      );
       lineage = res.data ?? res.raw;
       emit({
         lane: "context",
