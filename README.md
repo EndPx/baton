@@ -43,9 +43,33 @@ Every MCP tool call streams to a live trace UI, so you watch the baton move betw
 Requirements: a DataHub instance (e.g. `datahub docker quickstart`) and an API key for any OpenAI-compatible LLM endpoint — the hosted demo runs `meta/llama-3.1-70b-instruct` on NVIDIA NIM, but OpenRouter, Together or a local vLLM work by changing `LLM_BASE_URL`.
 
 ```bash
-cp .env.example .env   # fill in your values
-# full setup instructions coming with the first release
+# 1. DataHub, with the demo catalog
+pip install acryl-datahub
+datahub docker quickstart
+datahub datapack load showcase-ecommerce      # ~827 entities
+
+# 2. The SQL validator (sqlglot lives in Python, the orchestrator does not)
+cd validator && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8100 &
+
+# 3. Baton
+cd ../web && npm ci
+cp ../.env.example .env.local                 # fill in LLM_API_KEY + DATAHUB_GMS_TOKEN
+npm run build && npm run start -- -p 3400
 ```
+
+`uvx` must be on `PATH` — Baton spawns `uvx mcp-server-datahub@latest` as its
+MCP sidecar, because GMS has no built-in `/mcp` endpoint on the open-source
+build. Get the DataHub token from **Settings → Access Tokens**.
+
+Run it on the same host as DataHub. GMS should stay bound to localhost, which
+means a frontend hosted anywhere else cannot reach it.
+
+## Sample output
+
+[`examples/`](examples/) holds a dbt model Baton actually generated, with the
+run that produced it written down — including why the column names in it are
+the proof that grounding works.
 
 ## Tech
 

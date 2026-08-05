@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: joined_orders_customers
+    description: >
+      This model joins the orders and customers tables on the customer_id column, allowing for analysis of customer information alongside their order history.
+    columns:
+      - name: customers
+      - name: customer_id
+      - name: cust_email
+      - name: cust_first_name
+      - name: cust_last_name
+      - name: orders
+      - name: order_date
+      - name: order_id
+      - name: order_total
