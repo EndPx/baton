@@ -8,7 +8,7 @@
  * and the orchestration log beside it shows every call and hand-off.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -25,8 +25,16 @@ import {
   type Edge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { AlertTriangle, Loader2, Play, Sparkles, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Loader2,
+  Play,
+  Sparkles,
+  Square,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ChoicePanel } from "@/components/studio/ChoicePanel";
 import { RunLog } from "@/components/studio/RunLog";
 import { nodeTypes, type StageNodeType } from "@/components/studio/StageNode";
 import {
@@ -51,7 +59,7 @@ import {
 } from "@/lib/templates";
 import { deriveStageStates } from "@/lib/traceMapping";
 import { DEMO_GOAL, DEMO_RESULT, DEMO_STEPS } from "@/lib/demo";
-import type { PublishResult, TraceEvent } from "@/lib/baton";
+import type { ChoiceRequest, PublishResult, TraceEvent } from "@/lib/baton";
 
 const DND_MIME = "application/baton-stage";
 
@@ -66,7 +74,10 @@ const EXECUTABLE_KINDS: StageKind[] = [
   "write_back_tags",
 ];
 
-type RunState = "idle" | "running" | "done" | "error";
+type RunState = "idle" | "running" | "awaiting" | "done" | "error";
+
+/** Canvas survives a refresh; nobody should lose a pipeline to a reload. */
+const STORAGE_KEY = "baton.canvas.v1";
 
 function graphToFlow(graph: PipelineGraph): {
   nodes: StageNodeType[];
@@ -179,10 +190,12 @@ function StudioInner() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [composeGoal, setComposeGoal] = useState("");
   const [composing, setComposing] = useState(false);
+  const [choice, setChoice] = useState<ChoiceRequest | null>(null);
 
   const idRef = useRef(100);
   const runningRef = useRef(false);
   const rejectionRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const { screenToFlowPosition } = useReactFlow();
 
   // ── Rules ────────────────────────────────────────────────────────────
@@ -210,6 +223,74 @@ function StudioInner() {
 
   // ── Live status from the trace ───────────────────────────────────────
   const stageStates = useMemo(() => deriveStageStates(events), [events]);
+
+  const summary = useMemo(() => {
+    if (events.length === 0) return null;
+    return {
+      seconds: ((events[events.length - 1].ts - events[0].ts) / 1000).toFixed(1),
+      toolCalls: events.filter((e) => e.type === "tool_call").length,
+      stagesDone: new Set(
+        events.filter((e) => e.type === "node_complete").map((e) => e.node),
+      ).size,
+    };
+  }, [events]);
+
+  /** The one selected stage, for the inspector. */
+  const selectedStage = useMemo(() => {
+    const picked = nodes.filter((n) => n.selected);
+    return picked.length === 1 ? STAGE_BY_KIND[picked[0].data.kind] : null;
+  }, [nodes]);
+
+  // ── Canvas persistence ───────────────────────────────────────────────
+  // Restored after mount, never during render: the server has no
+  // localStorage, so seeding initial state from it would not hydrate.
+  const skipFirstSaveRef = useRef(true);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Partial<PipelineGraph> & {
+        goal?: string;
+      };
+      if (!saved.nodes?.length) return;
+      const flow = graphToFlow(saved as PipelineGraph);
+      setNodes(flow.nodes);
+      setEdges(flow.edges);
+      setActiveTemplate("");
+      if (saved.goal) setGoal(saved.goal);
+      // Keep generated ids clear of the restored ones.
+      idRef.current = saved.nodes.reduce(
+        (max, n) => Math.max(max, Number(n.id.replace(/\D/g, "")) || 0),
+        100,
+      );
+    } catch {
+      // Corrupt or unavailable storage is not worth failing the app over.
+    }
+  }, [setNodes, setEdges]);
+
+  useEffect(() => {
+    if (skipFirstSaveRef.current) {
+      skipFirstSaveRef.current = false;
+      return;
+    }
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          goal,
+          nodes: nodes.map((n) => ({
+            id: n.id,
+            kind: n.data.kind,
+            position: n.position,
+          })),
+          edges: edges.map((e) => ({ source: e.source, target: e.target })),
+        }),
+      );
+    } catch {
+      // Quota or private mode — the canvas still works, it just will not persist.
+    }
+  }, [nodes, edges, goal]);
 
   const displayNodes = useMemo(
     () =>
@@ -345,46 +426,78 @@ function StudioInner() {
   }, [composeGoal, composing, setNodes, setEdges]);
 
   // ── Running ──────────────────────────────────────────────────────────
-  const run = useCallback(async () => {
-    if (runningRef.current || !goal.trim() || blocking.length > 0) return;
-    runningRef.current = true;
-    setRunState("running");
-    setEvents([]);
-    setResult(null);
-    setErrorMsg(null);
-    try {
-      const res = await fetch("/api/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          goal,
-          writeBack,
-          graph: { nodes: graphNodes, edges: graphEdges },
-        }),
-      });
-      if (!res.ok || !res.body) {
-        throw new Error(`Request failed: HTTP ${res.status}`);
-      }
-      await consumeSse(res.body, (event, data) => {
-        if (event === "trace") {
-          setEvents((prev) => [...prev, JSON.parse(data) as TraceEvent]);
-        } else if (event === "result") {
-          setResult(JSON.parse(data) as PublishResult);
-          setRunState("done");
-        } else if (event === "error") {
-          const payload = JSON.parse(data) as { message: string };
-          setErrorMsg(payload.message);
+  const run = useCallback(
+    async (selections?: string[]) => {
+      if (runningRef.current || !goal.trim() || blocking.length > 0) return;
+      runningRef.current = true;
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setRunState("running");
+      setChoice(null);
+      setEvents([]);
+      setResult(null);
+      setErrorMsg(null);
+      let paused = false;
+      try {
+        const res = await fetch("/api/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            goal,
+            writeBack,
+            selections,
+            graph: { nodes: graphNodes, edges: graphEdges },
+          }),
+        });
+        if (!res.ok || !res.body) {
+          throw new Error(`Request failed: HTTP ${res.status}`);
+        }
+        await consumeSse(res.body, (event, data) => {
+          if (event === "trace") {
+            setEvents((prev) => [...prev, JSON.parse(data) as TraceEvent]);
+          } else if (event === "choice") {
+            paused = true;
+            setChoice(JSON.parse(data) as ChoiceRequest);
+            setRunState("awaiting");
+          } else if (event === "result") {
+            setResult(JSON.parse(data) as PublishResult);
+            setRunState("done");
+          } else if (event === "error") {
+            const payload = JSON.parse(data) as { message: string };
+            setErrorMsg(payload.message);
+            setRunState("error");
+          }
+        });
+        if (!paused) setRunState((s) => (s === "running" ? "done" : s));
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          setRunState("idle");
+        } else {
+          setErrorMsg(err instanceof Error ? err.message : String(err));
           setRunState("error");
         }
-      });
-      setRunState((s) => (s === "running" ? "done" : s));
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : String(err));
-      setRunState("error");
-    } finally {
-      runningRef.current = false;
-    }
-  }, [goal, writeBack, blocking.length, graphNodes, graphEdges]);
+      } finally {
+        runningRef.current = false;
+        abortRef.current = null;
+      }
+    },
+    [goal, writeBack, blocking.length, graphNodes, graphEdges],
+  );
+
+  const stop = useCallback(() => abortRef.current?.abort(), []);
+
+  // Cmd/Ctrl+Enter runs from anywhere, including the goal field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        void run();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [run]);
 
   const runDemo = useCallback(async () => {
     if (runningRef.current) return;
@@ -442,26 +555,33 @@ function StudioInner() {
           Write back
         </label>
 
-        <Button
-          size="sm"
-          onClick={run}
-          disabled={
-            runState === "running" || !goal.trim() || blocking.length > 0
-          }
-          title={
-            blocking.length > 0
-              ? "Fix the rule violations before running"
-              : "Run the pipeline"
-          }
-          className="font-semibold"
-        >
-          {runState === "running" ? (
-            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-          ) : (
+        {runState === "running" ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={stop}
+            title="Stop this run"
+            className="border-red-500/40 font-semibold text-red-300 hover:bg-red-500/10"
+          >
+            <Square className="mr-1.5 h-3 w-3 fill-current" />
+            Stop
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={() => void run()}
+            disabled={!goal.trim() || blocking.length > 0}
+            title={
+              blocking.length > 0
+                ? "Fix the rule violations before running"
+                : "Run the pipeline (Ctrl/Cmd + Enter)"
+            }
+            className="font-semibold"
+          >
             <Play className="mr-1.5 h-3.5 w-3.5" />
-          )}
-          Run
-        </Button>
+            Run
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
@@ -576,6 +696,55 @@ function StudioInner() {
         </main>
 
         <aside className="flex w-96 shrink-0 flex-col border-l border-slate-800">
+          {/* The agent asking rather than guessing */}
+          {choice && (
+            <ChoicePanel
+              request={choice}
+              busy={runState === "running"}
+              onConfirm={(urns) => void run(urns)}
+              onCancel={() => {
+                setChoice(null);
+                setRunState("idle");
+              }}
+            />
+          )}
+
+          {summary && (
+            <div className="flex items-center gap-3 border-b border-slate-800 px-3 py-2 text-[10px] text-slate-400">
+              <span>{summary.seconds}s</span>
+              <span>{summary.toolCalls} tool calls</span>
+              <span>{summary.stagesDone} stages</span>
+              {result && (
+                <span className="text-emerald-400">
+                  {result.files.length} files
+                </span>
+              )}
+              {runState === "running" && (
+                <span className="ml-auto text-sky-300">running…</span>
+              )}
+              {runState === "awaiting" && (
+                <span className="ml-auto text-amber-300">waiting on you</span>
+              )}
+            </div>
+          )}
+
+          {selectedStage && (
+            <div className="border-b border-slate-800 px-3 py-2">
+              <p className="text-[10px] font-semibold tracking-[0.15em] text-slate-500 uppercase">
+                Stage
+              </p>
+              <p className="mt-1 text-xs font-semibold text-slate-100">
+                {selectedStage.label}
+              </p>
+              <code className="mt-0.5 block font-mono text-[10px] text-sky-300">
+                {selectedStage.tool}
+              </code>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
+                {selectedStage.description}
+              </p>
+            </div>
+          )}
+
           {/* Rules */}
           <section className="max-h-56 shrink-0 overflow-y-auto border-b border-slate-800">
             <div className="flex items-center justify-between px-3 py-2">

@@ -9,10 +9,32 @@
 import { callTool } from "@/lib/mcp";
 import type {
   BatonContext,
+  ChoiceRequest,
+  EntityCandidate,
   ResolvedEntity,
   SchemaMap,
   TraceEmitter,
 } from "@/lib/baton";
+
+/** How many search hits we are willing to show the user at once. */
+const MAX_CANDIDATES = 8;
+
+/**
+ * Thrown instead of guessing when the search is ambiguous. The route turns
+ * this into an SSE `choice` event rather than an error.
+ */
+export class AmbiguousEntitiesError extends Error {
+  constructor(readonly request: ChoiceRequest) {
+    super("Awaiting entity selection");
+    this.name = "AmbiguousEntitiesError";
+  }
+}
+
+export interface ContextLaneOptions {
+  maxEntities?: number;
+  /** Dataset URNs the user picked when a previous run paused. */
+  selections?: string[];
+}
 
 interface SearchResponse {
   searchResults?: Array<{
@@ -61,8 +83,9 @@ function dialectForPlatform(platform: string): string {
 export async function runContextLane(
   goal: string,
   emit: TraceEmitter,
-  maxEntities = 3,
+  options: ContextLaneOptions = {},
 ): Promise<BatonContext> {
+  const maxEntities = options.maxEntities ?? 3;
   // --- Node: resolve_entities ---
   emit({
     lane: "context",
@@ -80,24 +103,68 @@ export async function runContextLane(
   });
 
   const search = await callTool<SearchResponse>("search", { query: goal });
-  const candidates = (search.data?.searchResults ?? [])
+  const found = (search.data?.searchResults ?? [])
     .map((r) => r.entity)
     .filter(
       (e): e is NonNullable<typeof e> =>
         !!e?.urn && e.urn.includes(":dataset:"),
     )
-    .slice(0, maxEntities);
+    .slice(0, MAX_CANDIDATES);
 
-  if (candidates.length === 0) {
+  if (found.length === 0) {
     throw new Error("No datasets found in DataHub matching the goal");
   }
 
-  const entities: ResolvedEntity[] = candidates.map((e) => ({
+  const candidates: EntityCandidate[] = found.map((e) => ({
     urn: e.urn!,
     name: e.name ?? tableNameFromUrn(e.urn!),
     platform: e.platform?.name ?? platformFromUrn(e.urn!),
-    entityType: e.type ?? "DATASET",
     description: e.description,
+  }));
+
+  let chosen: EntityCandidate[];
+
+  if (options.selections?.length) {
+    // Only honour URNs that this very search returned, so a client cannot
+    // point the pipeline at something the goal never matched.
+    const wanted = new Set(options.selections);
+    chosen = candidates.filter((c) => wanted.has(c.urn));
+    if (chosen.length === 0) {
+      throw new Error(
+        "None of the selected datasets are in the current search results — run again to refresh the candidates.",
+      );
+    }
+    emit({
+      lane: "context",
+      node: "resolve_entities",
+      type: "tool_result",
+      label: `Using your selection: ${chosen.map((c) => c.name).join(", ")}`,
+      data: { entities: chosen },
+    });
+  } else if (candidates.length > maxEntities) {
+    // Refuse to silently truncate: ask instead of picking the first N.
+    emit({
+      lane: "context",
+      node: "resolve_entities",
+      type: "tool_result",
+      label: `${candidates.length} datasets match — asking which to use instead of guessing`,
+      data: { candidates },
+    });
+    throw new AmbiguousEntitiesError({
+      candidates,
+      preselected: candidates.slice(0, maxEntities).map((c) => c.urn),
+      reason: `Search matched ${candidates.length} datasets. Choose the ones the model should be grounded in.`,
+    });
+  } else {
+    chosen = candidates;
+  }
+
+  const entities: ResolvedEntity[] = chosen.map((c) => ({
+    urn: c.urn,
+    name: c.name,
+    platform: c.platform,
+    entityType: "DATASET",
+    description: c.description,
   }));
 
   emit({

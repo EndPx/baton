@@ -35,6 +35,26 @@ export type TraceEmitter = (
   event: Omit<TraceEvent, "id" | "ts">,
 ) => void;
 
+/** A dataset the search turned up, offered to the user when it is ambiguous. */
+export interface EntityCandidate {
+  urn: string;
+  name: string;
+  platform: string;
+  description?: string;
+}
+
+/**
+ * Emitted when the Context agent will not guess. The run stops here; the
+ * client sends the chosen URNs back and the pipeline starts again with them
+ * pinned. (Serverless has nowhere to park a half-finished stream.)
+ */
+export interface ChoiceRequest {
+  candidates: EntityCandidate[];
+  /** What Baton would have picked on its own. */
+  preselected: string[];
+  reason: string;
+}
+
 export interface ResolvedEntity {
   urn: string;
   name: string;
