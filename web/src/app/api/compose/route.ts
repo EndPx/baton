@@ -10,7 +10,7 @@ import "server-only";
  * never exposed to the browser.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { chatJson } from "@/lib/llm";
 import { STAGES, type StageKind } from "@/lib/nodes/registry";
 import type { GraphEdge, GraphNode, PipelineGraph } from "@/lib/templates";
 
@@ -91,65 +91,50 @@ export async function POST(req: Request) {
   if (!goal) {
     return Response.json({ error: "A goal is required" }, { status: 400 });
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.LLM_API_KEY) {
     return Response.json(
       {
         error:
-          "ANTHROPIC_API_KEY is not configured on the server. Pick a template instead, or set the key to enable AI compose.",
+          "LLM_API_KEY is not configured on the server. Pick a template instead, or set the key to enable AI compose.",
       },
       { status: 503 },
     );
   }
 
-  const client = new Anthropic(); // reads ANTHROPIC_API_KEY server-side
-
   try {
-    const message = await client.messages.create({
-      model: "claude-opus-5",
-      max_tokens: 1024,
+    const result = await chatJson<{ stages?: ModelStage[] }>({
       system: SYSTEM,
-      tools: [
-        {
-          name: "emit_pipeline",
-          description:
-            "Return the pipeline as a directed acyclic graph of Baton stages.",
-          input_schema: {
-            type: "object",
-            properties: {
-              stages: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    id: { type: "string" },
-                    kind: { type: "string", enum: KINDS },
-                    dependsOn: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "Ids of stages that must run before this one",
-                    },
-                  },
-                  required: ["id", "kind", "dependsOn"],
+      user: `Goal: ${goal}`,
+      schemaName: "pipeline",
+      maxTokens: 1500,
+      isValid: (value) => Array.isArray(value?.stages),
+      schema: {
+        type: "object",
+        properties: {
+          stages: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                kind: { type: "string", enum: KINDS },
+                dependsOn: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Ids of stages that must run before this one",
                 },
               },
+              required: ["id", "kind", "dependsOn"],
+              additionalProperties: false,
             },
-            required: ["stages"],
           },
         },
-      ],
-      tool_choice: { type: "tool", name: "emit_pipeline" },
-      messages: [{ role: "user", content: `Goal: ${goal}` }],
+        required: ["stages"],
+        additionalProperties: false,
+      },
     });
 
-    const toolUse = message.content.find((block) => block.type === "tool_use");
-    if (!toolUse || toolUse.type !== "tool_use") {
-      return Response.json(
-        { error: "The model did not return a pipeline" },
-        { status: 502 },
-      );
-    }
-
-    const raw = (toolUse.input as { stages?: ModelStage[] })?.stages ?? [];
+    const raw = result.stages ?? [];
     const stages = raw.filter((s) => s?.id && VALID.has(s.kind));
     if (stages.length === 0) {
       return Response.json(

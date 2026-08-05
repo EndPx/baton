@@ -11,7 +11,12 @@
 import type { TraceEvent } from "@/lib/baton";
 import type { StageKind } from "@/lib/nodes/registry";
 
-export type StageStatus = "idle" | "running" | "done" | "error";
+export type StageStatus =
+  | "idle"
+  | "running"
+  | "done"
+  | "skipped"
+  | "error";
 
 export interface StageRunState {
   status: StageStatus;
@@ -53,6 +58,8 @@ export function deriveStageStates(
 
       if (event.type === "error") {
         status = "error";
+      } else if (event.type === "node_skipped") {
+        status = "skipped";
       } else if (event.type === "node_complete") {
         status = "done";
       } else if (event.type === "node_start") {

@@ -25,6 +25,7 @@ const TYPE_GLYPH: Record<string, string> = {
   tool_call: "→",
   tool_result: "←",
   node_complete: "✓",
+  node_skipped: "⊘",
   handoff: "⇥",
   error: "✕",
   pipeline_complete: "★",

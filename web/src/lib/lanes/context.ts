@@ -289,7 +289,15 @@ export async function runContextLane(
 
   // --- Node: fetch_lineage (best-effort) ---
   let lineage: unknown;
-  if (entities.length >= 2) {
+  if (entities.length < 2) {
+    // Say so out loud. A stage that silently stays dark reads as broken.
+    emit({
+      lane: "context",
+      node: "fetch_lineage",
+      type: "node_skipped",
+      label: `Skipped — lineage runs between two datasets, and this run resolved only ${entities[0].name}`,
+    });
+  } else {
     emit({
       lane: "context",
       node: "fetch_lineage",

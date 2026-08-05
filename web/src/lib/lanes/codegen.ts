@@ -7,7 +7,7 @@
  */
 
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
+import { chatJson, LLM_MODEL } from "@/lib/llm";
 import type {
   BatonContext,
   CodegenResult,
@@ -18,7 +18,6 @@ import type {
 const MAX_CORRECTIONS = 2;
 const VALIDATOR_URL = process.env.VALIDATOR_URL ?? "http://localhost:8100";
 
-const client = new Anthropic(); // reads ANTHROPIC_API_KEY server-side
 
 const OUTPUT_SCHEMA = {
   type: "object",
@@ -45,6 +44,16 @@ interface GenOutput {
   sql: string;
   model_name: string;
   notes: string;
+}
+
+async function generate(system: string, user: string): Promise<GenOutput> {
+  return chatJson<GenOutput>({
+    system,
+    user,
+    schemaName: "dbt_model",
+    schema: OUTPUT_SCHEMA as unknown as Record<string, unknown>,
+    isValid: (value) => Boolean(value?.sql && value?.model_name),
+  });
 }
 
 function buildSystemPrompt(ctx: BatonContext): string {
@@ -142,28 +151,11 @@ Fix the SQL so every referenced column exists in the schema map.`;
       lane: "codegen",
       node: "generate_sql",
       type: "tool_call",
-      label: "Anthropic API: claude-opus-5 (structured output)",
-      data: { model: "claude-opus-5", attempt: attempts },
+      label: `LLM: ${LLM_MODEL} (structured output)`,
+      data: { model: LLM_MODEL, attempt: attempts },
     });
 
-    const response = await client.messages.create({
-      model: "claude-opus-5",
-      max_tokens: 8192,
-      system,
-      output_config: {
-        format: { type: "json_schema", schema: OUTPUT_SCHEMA },
-      },
-      messages: [{ role: "user", content: userContent }],
-    });
-
-    if (response.stop_reason === "refusal") {
-      throw new Error("Model refused the generation request");
-    }
-    const text = response.content.find((b) => b.type === "text");
-    if (!text || text.type !== "text") {
-      throw new Error("No text block in model response");
-    }
-    gen = JSON.parse(text.text) as GenOutput;
+    gen = await generate(system, userContent);
 
     emit({
       lane: "codegen",

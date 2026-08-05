@@ -31,6 +31,8 @@ const STATUS_RING: Record<StageStatus, string> = {
   idle: "",
   running: "ring-2 ring-sky-400 ring-offset-2 ring-offset-slate-950",
   done: "ring-2 ring-emerald-400 ring-offset-2 ring-offset-slate-950",
+  skipped:
+    "opacity-60 ring-1 ring-slate-600 ring-offset-2 ring-offset-slate-950",
   error: "ring-2 ring-red-400 ring-offset-2 ring-offset-slate-950",
 };
 
@@ -38,7 +40,16 @@ const STATUS_TEXT: Record<StageStatus, string> = {
   idle: "",
   running: "text-sky-300",
   done: "text-emerald-300",
+  skipped: "text-slate-400",
   error: "text-red-300",
+};
+
+const STATUS_LABEL: Record<StageStatus, string> = {
+  idle: "",
+  running: "running…",
+  done: "done",
+  skipped: "skipped",
+  error: "failed",
 };
 
 export function StageNode({ data, selected }: NodeProps<StageNodeType>) {
@@ -97,11 +108,7 @@ export function StageNode({ data, selected }: NodeProps<StageNodeType>) {
         </span>
         {status !== "idle" && (
           <span className={`text-[10px] ${STATUS_TEXT[status]}`}>
-            {status === "running"
-              ? "running…"
-              : status === "done"
-                ? "done"
-                : "failed"}
+            {STATUS_LABEL[status]}
           </span>
         )}
       </div>

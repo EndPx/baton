@@ -13,6 +13,8 @@ export type TraceEventType =
   | "tool_call"
   | "tool_result"
   | "node_complete"
+  /** The stage did not apply to this run; the label says why. */
+  | "node_skipped"
   | "handoff"
   | "error"
   | "pipeline_complete";
