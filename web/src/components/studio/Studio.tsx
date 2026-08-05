@@ -188,6 +188,7 @@ function StudioInner() {
   const [composeGoal, setComposeGoal] = useState("");
   const [composing, setComposing] = useState(false);
   const [choice, setChoice] = useState<ChoiceRequest | null>(null);
+  const [stopped, setStopped] = useState(false);
   const [showPalette, setShowPalette] = useState(true);
   const [showPanel, setShowPanel] = useState(true);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -314,11 +315,15 @@ function StudioInner() {
     () =>
       nodes.map((n) => {
         const state = nodeStates[n.id] ?? stageStates[n.data.kind];
+        // A stopped run leaves whatever was in flight; it must not keep
+        // claiming to run when nothing is listening any more.
+        const status =
+          stopped && state?.status === "running" ? "idle" : state?.status;
         return {
           ...n,
           data: {
             ...n.data,
-            status: state?.status ?? "idle",
+            status: status ?? "idle",
             detail: state?.detail,
             hasIssue: blocking.some((i) => i.nodeId === n.id),
           },
@@ -452,6 +457,7 @@ function StudioInner() {
       abortRef.current = controller;
       setRunState("running");
       setChoice(null);
+      setStopped(false);
       setEvents([]);
       setResult(null);
       setErrorMsg(null);
@@ -490,6 +496,9 @@ function StudioInner() {
         if (!paused) setRunState((s) => (s === "running" ? "done" : s));
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
+          // We stopped listening; the server may still be finishing the stage
+          // it was on, so the node goes quiet rather than claiming to run.
+          setStopped(true);
           setRunState("idle");
         } else {
           setErrorMsg(err instanceof Error ? err.message : String(err));
@@ -720,6 +729,11 @@ function StudioInner() {
               )}
               {runState === "awaiting" && (
                 <span className="ml-auto text-amber-300">waiting on you</span>
+              )}
+              {stopped && (
+                <span className="ml-auto text-slate-500">
+                  stopped — the server may still be finishing
+                </span>
               )}
             </div>
           )}
