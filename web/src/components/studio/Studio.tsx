@@ -329,14 +329,17 @@ function StudioInner() {
           },
         };
       }),
-    [nodes, stageStates, blocking],
+    [nodes, nodeStates, stageStates, blocking, stopped],
   );
 
   const displayEdges = useMemo(
     () =>
       edges.map((e) => {
         const targetKind = nodes.find((n) => n.id === e.target)?.data.kind;
-        const status = targetKind ? stageStates[targetKind]?.status : undefined;
+        const raw =
+          nodeStates[e.target]?.status ??
+          (targetKind ? stageStates[targetKind]?.status : undefined);
+        const status = stopped && raw === "running" ? undefined : raw;
         return {
           ...e,
           animated: status === "running",
@@ -350,7 +353,7 @@ function StudioInner() {
           },
         };
       }),
-    [edges, nodes, stageStates],
+    [edges, nodes, nodeStates, stageStates, stopped],
   );
 
   // ── Canvas interactions ──────────────────────────────────────────────
