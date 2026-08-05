@@ -57,6 +57,7 @@ export interface RunState {
 
   files: GeneratedFile[];
   taggedUrns: string[];
+  describedUrns: string[];
   writeBackErrors: string[];
 }
 
@@ -309,10 +310,12 @@ const searchEntities: StageHandler = async ({ state, emit }) => {
   });
 
   const byUrn = new Map<string, EntityCandidate>();
+  const hitsPerTerm = new Map<string, string[]>();
+
   for (const [rank, term] of terms.entries()) {
     const perTerm = rank === 0 ? 4 : 2;
     const res = await callTool<SearchResponse>("search", { query: term });
-    let taken = 0;
+    const hits: string[] = [];
     for (const result of res.data?.searchResults ?? []) {
       const entity = result.entity;
       if (!entity?.urn || !entity.urn.includes(":dataset:")) continue;
@@ -324,11 +327,38 @@ const searchEntities: StageHandler = async ({ state, emit }) => {
           description: entity.description,
         });
       }
-      if (++taken >= perTerm) break;
+      hits.push(entity.urn);
+      if (hits.length >= perTerm) break;
     }
+    hitsPerTerm.set(term, hits);
   }
 
   const candidates = [...byUrn.values()].slice(0, MAX_CANDIDATES);
+  const known = new Set(candidates.map((c) => c.urn));
+
+  /**
+   * Take one hit from each term before taking a second from any. "orders and
+   * customers" otherwise preselects three flavours of customers and never
+   * looks at orders, because the higher-ranked term fills the whole budget.
+   */
+  const spreadPreselection = (limit: number): string[] => {
+    const picked: string[] = [];
+    for (let round = 0; picked.length < limit && round < MAX_CANDIDATES; round++) {
+      for (const term of terms) {
+        const urn = (hitsPerTerm.get(term) ?? [])[round];
+        if (urn && known.has(urn) && !picked.includes(urn)) {
+          picked.push(urn);
+          if (picked.length >= limit) break;
+        }
+      }
+    }
+    // Fall back to plain order if the terms produced too few between them.
+    for (const candidate of candidates) {
+      if (picked.length >= limit) break;
+      if (!picked.includes(candidate.urn)) picked.push(candidate.urn);
+    }
+    return picked;
+  };
   if (candidates.length === 0) {
     throw new Error("No datasets found in DataHub matching the goal");
   }
@@ -358,7 +388,7 @@ const searchEntities: StageHandler = async ({ state, emit }) => {
     });
     throw new AmbiguousEntitiesError({
       candidates,
-      preselected: candidates.slice(0, state.maxEntities).map((c) => c.urn),
+      preselected: spreadPreselection(state.maxEntities),
       reason: `Search matched ${candidates.length} datasets. Choose the ones the model should be grounded in.`,
     });
   } else {
@@ -822,13 +852,14 @@ const writeBackDescription: StageHandler = async ({ state, emit }) => {
     label: "Publishing descriptions onto the datasets",
   });
 
-  let written = 0;
   for (const doc of state.docs) {
+    // Two datasets can share a name across platforms; say which one.
+    const label = `${doc.name} · ${platformFromUrn(doc.urn)}`;
     emit({
       lane: "publisher",
       node: "write_back_description",
       type: "tool_call",
-      label: `MCP update_description(${doc.name})`,
+      label: `MCP update_description(${label})`,
     });
     const res = await callTool(
       "update_description",
@@ -837,10 +868,10 @@ const writeBackDescription: StageHandler = async ({ state, emit }) => {
     );
     if (res.isError) {
       state.writeBackErrors.push(
-        `update_description failed for ${doc.name}: ${res.raw.slice(0, 120)}`,
+        `update_description failed for ${label}: ${res.raw.slice(0, 120)}`,
       );
     } else {
-      written++;
+      state.describedUrns.push(doc.urn);
     }
   }
 
@@ -848,7 +879,7 @@ const writeBackDescription: StageHandler = async ({ state, emit }) => {
     lane: "publisher",
     node: "write_back_description",
     type: "node_complete",
-    label: `Described ${written} dataset(s) in DataHub`,
+    label: `Described ${state.describedUrns.length} dataset(s) in DataHub`,
   });
 };
 

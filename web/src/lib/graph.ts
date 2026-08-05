@@ -121,6 +121,7 @@ export async function runGraph(
     docs: [],
     files: [],
     taggedUrns: [],
+    describedUrns: [],
     writeBackErrors: [],
   };
 
@@ -183,10 +184,16 @@ export async function runGraph(
       lane: "publisher",
       node: "handoff",
       type: "pipeline_complete",
-      label: `Done: ${state.files.length} file${state.files.length === 1 ? "" : "s"} ready${
-        state.taggedUrns.length
-          ? `, ${state.taggedUrns.length} datasets tagged`
-          : ""
+      // Not every pipeline makes files — a documentation run's deliverable is
+      // the catalog itself. Report what this graph actually produced.
+      label: `Done: ${
+        [
+          state.files.length && `${state.files.length} file${state.files.length === 1 ? "" : "s"} ready`,
+          state.describedUrns.length && `${state.describedUrns.length} dataset(s) described`,
+          state.taggedUrns.length && `${state.taggedUrns.length} dataset(s) tagged`,
+        ]
+          .filter(Boolean)
+          .join(", ") || "nothing produced — the pipeline had no output stage"
       }`,
     },
     order[order.length - 1]?.id ?? "",
