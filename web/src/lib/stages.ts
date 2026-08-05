@@ -53,6 +53,20 @@ export interface RunState {
   validation?: ValidationReport;
   attempts: number;
 
+  /**
+   * One record per selected dataset. `schemaMap` is keyed by the bare table
+   * name because the SQL validator resolves columns against the identifiers
+   * written in the SQL, so two catalogs' `customers` collapse into one entry
+   * there. This keeps every selected dataset distinct.
+   */
+  schemas: Array<{
+    urn: string;
+    label: string;
+    table: string;
+    columns: Record<string, string>;
+  }>;
+
+  /** `name` is the run-unique label, not the bare table name. */
   docs: Array<{ urn: string; name: string; description: string }>;
 
   files: GeneratedFile[];
@@ -98,6 +112,30 @@ export function platformFromUrn(urn: string): string {
 export function tableNameFromUrn(urn: string): string {
   const full = urn.match(/dataPlatform:[a-zA-Z0-9_-]+,([^,)]+)/)?.[1] ?? urn;
   return full.split(".").pop() ?? full;
+}
+
+function pathFromUrn(urn: string): string {
+  return urn.match(/dataPlatform:[a-zA-Z0-9_-]+,([^,)]+)/)?.[1] ?? urn;
+}
+
+/**
+ * A label that is unique across the datasets in this run. Two platforms can
+ * both hold a table called `customers`, and identifying a dataset by the bare
+ * name silently merges them — which is how one selected dataset went
+ * undocumented while another was described twice. Qualify only as far as it
+ * takes to separate them.
+ */
+export function labelForUrn(urn: string, all: string[]): string {
+  const table = tableNameFromUrn(urn);
+  if (all.filter((u) => tableNameFromUrn(u) === table).length <= 1) return table;
+
+  const qualified = `${table} · ${platformFromUrn(urn)}`;
+  const sameQualified = all.filter(
+    (u) => `${tableNameFromUrn(u)} · ${platformFromUrn(u)}` === qualified,
+  );
+  if (sameQualified.length <= 1) return qualified;
+
+  return `${qualified} · ${pathFromUrn(urn)}`;
 }
 
 function dialectForPlatform(platform: string): string {
@@ -408,7 +446,15 @@ const searchEntities: StageHandler = async ({ state, emit }) => {
     lane: "context",
     node: "search_entities",
     type: "node_complete",
-    label: `Resolved ${state.entities.length} dataset(s): ${state.entities.map((e) => e.name).join(", ")}`,
+    // Qualify the names, so "customers, customers, orders" says which is which.
+    label: `Resolved ${state.entities.length} dataset(s): ${state.entities
+      .map((e) =>
+        labelForUrn(
+          e.urn,
+          state.entities.map((x) => x.urn),
+        ),
+      )
+      .join(", ")}`,
     data: { entities: state.entities },
   });
 };
@@ -421,12 +467,15 @@ const fetchSchema: StageHandler = async ({ state, emit }) => {
     label: "Fetching real schemas from DataHub",
   });
 
+  const urns = state.entities.map((e) => e.urn);
+
   for (const entity of state.entities) {
+    const label = labelForUrn(entity.urn, urns);
     emit({
       lane: "context",
       node: "fetch_schema",
       type: "tool_call",
-      label: `MCP list_schema_fields(${entity.name})`,
+      label: `MCP list_schema_fields(${label})`,
     });
     // The tool's parameter is `urn`, not `dataset_urn`.
     const schema = await callTool<SchemaFieldsResponse>("list_schema_fields", {
@@ -434,18 +483,29 @@ const fetchSchema: StageHandler = async ({ state, emit }) => {
     });
     const fields = schema.data?.fields ?? schema.data?.schema_fields ?? [];
     const table = tableNameFromUrn(entity.urn);
-    state.schemaMap[table] = {};
+
+    const columns: Record<string, string> = {};
     for (const f of fields) {
       if (f.fieldPath) {
-        state.schemaMap[table][f.fieldPath] =
-          f.nativeDataType ?? f.type ?? "unknown";
+        columns[f.fieldPath] = f.nativeDataType ?? f.type ?? "unknown";
       }
     }
+    state.schemas.push({ urn: entity.urn, label, table, columns });
+
+    // schemaMap keeps the bare table name as its key, because that is the
+    // identifier the generated SQL uses and the validator resolves against.
+    // Two selected datasets can therefore land on one key — merge them and say
+    // so, rather than letting the later one silently replace the earlier.
+    const collision = state.schemaMap[table] !== undefined;
+    state.schemaMap[table] = { ...(state.schemaMap[table] ?? {}), ...columns };
+
     emit({
       lane: "context",
       node: "fetch_schema",
       type: "tool_result",
-      label: `${table}: ${Object.keys(state.schemaMap[table]).length} columns`,
+      label: collision
+        ? `${label}: ${Object.keys(columns).length} columns — shares the table name "${table}" with another selected dataset, so SQL grounding merges them`
+        : `${label}: ${Object.keys(columns).length} columns`,
     });
   }
 
@@ -463,7 +523,7 @@ const fetchSchema: StageHandler = async ({ state, emit }) => {
     lane: "context",
     node: "fetch_schema",
     type: "node_complete",
-    label: `Schemas fetched — ${total} columns across ${Object.keys(state.schemaMap).length} table(s)`,
+    label: `Schemas fetched — ${total} columns across ${state.schemas.length} dataset(s)`,
   });
 };
 
@@ -601,38 +661,73 @@ const generateDocs: StageHandler = async ({ state, emit }) => {
     label: `LLM: ${LLM_MODEL} (structured output)`,
   });
 
+  // Address each dataset by its run-unique label. Asking the model to describe
+  // "customers, customers, orders" gave it no way to tell two catalogs apart,
+  // and gave us no way to bind its answers back to the right URNs.
+  const urns = state.entities.map((e) => e.urn);
+  const targets =
+    state.schemas.length > 0
+      ? state.schemas.map((s) => ({
+          urn: s.urn,
+          label: s.label,
+          columns: Object.keys(s.columns),
+        }))
+      : state.entities.map((e) => ({
+          urn: e.urn,
+          label: labelForUrn(e.urn, urns),
+          columns: [] as string[],
+        }));
+
   const result = await chatJson<{
     datasets: Array<{ name: string; description: string }>;
   }>({
-    system: `You are Baton's documentation agent. Write one clear, factual sentence describing each dataset, based only on the schema below. Never invent columns or business meaning you cannot see.
+    system: `You are Baton's documentation agent. Write one clear, factual sentence describing each dataset, based only on the columns listed for that dataset. Never invent columns or business meaning you cannot see. Datasets may share a table name across platforms; treat them as separate datasets.
 
-Schema map:
-${schemaLines(state.schemaMap)}`,
-    user: `Goal: ${state.goal}\n\nDescribe these datasets: ${state.entities.map((e) => e.name).join(", ")}`,
+Datasets and their columns:
+${targets.map((t) => `${t.label}: ${t.columns.join(", ") || "(no columns reported)"}`).join("\n")}`,
+    user: `Goal: ${state.goal}\n\nDescribe each dataset below. Return "name" exactly as written here:\n${targets.map((t) => `- ${t.label}`).join("\n")}`,
     schemaName: "dataset_docs",
     schema: DOCS_SCHEMA as unknown as Record<string, unknown>,
     isValid: (v) => Array.isArray(v?.datasets),
     maxTokens: 2000,
   });
 
-  state.docs = result.datasets
-    .map((doc) => {
-      const entity = state.entities.find(
-        (e) =>
-          e.name.toLowerCase() === doc.name.toLowerCase() ||
-          tableNameFromUrn(e.urn).toLowerCase() === doc.name.toLowerCase(),
-      );
-      return entity
-        ? { urn: entity.urn, name: entity.name, description: doc.description }
-        : null;
-    })
-    .filter((d): d is NonNullable<typeof d> => d !== null);
+  // Each dataset may be claimed once. Two drafts naming "customers" must not
+  // both land on the same URN, leaving the other dataset undescribed.
+  const taken = new Set<string>();
+  const claim = (name: string) => {
+    const key = name.trim().toLowerCase();
+    const free = targets.filter((t) => !taken.has(t.urn));
+    return (
+      free.find((t) => t.label.toLowerCase() === key) ??
+      // The model sometimes echoes the bare table name; accept it, but only
+      // for a dataset that has not already been spoken for.
+      free.find((t) => tableNameFromUrn(t.urn).toLowerCase() === key) ??
+      null
+    );
+  };
 
+  state.docs = [];
+  for (const doc of result.datasets) {
+    const target = claim(doc.name);
+    if (!target) continue;
+    taken.add(target.urn);
+    state.docs.push({
+      urn: target.urn,
+      name: target.label,
+      description: doc.description,
+    });
+  }
+
+  const missed = targets.filter((t) => !taken.has(t.urn));
   emit({
     lane: "codegen",
     node: "generate_docs",
     type: "node_complete",
-    label: `Drafted ${state.docs.length} description(s)`,
+    label:
+      missed.length === 0
+        ? `Drafted ${state.docs.length} description(s)`
+        : `Drafted ${state.docs.length} description(s) — none returned for ${missed.map((m) => m.label).join(", ")}`,
     data: { docs: state.docs },
   });
 };
@@ -853,8 +948,8 @@ const writeBackDescription: StageHandler = async ({ state, emit }) => {
   });
 
   for (const doc of state.docs) {
-    // Two datasets can share a name across platforms; say which one.
-    const label = `${doc.name} · ${platformFromUrn(doc.urn)}`;
+    // doc.name is already qualified far enough to be unique in this run.
+    const label = doc.name;
     emit({
       lane: "publisher",
       node: "write_back_description",

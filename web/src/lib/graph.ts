@@ -118,6 +118,7 @@ export async function runGraph(
     schemaMap: {},
     dialect: "snowflake",
     attempts: 0,
+    schemas: [],
     docs: [],
     files: [],
     taggedUrns: [],

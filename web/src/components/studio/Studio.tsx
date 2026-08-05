@@ -862,7 +862,10 @@ function StudioInner() {
                 <div key={doc.urn} className="mb-3">
                   <div className="mb-1 flex items-center justify-between gap-2">
                     <span className="truncate font-mono text-[11px] text-emerald-300">
-                      {doc.name} · {doc.platform}
+                      {/* name is already qualified when it had to be */}
+                      {doc.name.includes(doc.platform)
+                        ? doc.name
+                        : `${doc.name} · ${doc.platform}`}
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">
                       <span
