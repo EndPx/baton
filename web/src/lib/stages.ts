@@ -825,6 +825,27 @@ const validateSqlStage: StageHandler = async ({ state, emit }) => {
   );
 };
 
+const SQL_CLAUSE =
+  /\b(SELECT|FROM|INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL JOIN|CROSS JOIN|JOIN|WHERE|GROUP BY|ORDER BY|HAVING|QUALIFY|LIMIT|UNION ALL|UNION)\b/gi;
+
+/**
+ * Break a one-line model at its clause boundaries. Whitespace only — no token
+ * is added, removed or reordered — so what ships is still exactly what the
+ * validator checked. Models arrive on one line because they come back inside
+ * a JSON string field, which is no way to read a file headed for a PR.
+ * Quoted spans are held out so a literal containing "from" is left alone.
+ */
+function formatSql(sql: string): string {
+  if (sql.includes("\n")) return sql; // the model formatted it itself
+  return sql
+    .split(/('(?:[^']|'')*'|"(?:[^"]|"")*")/)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(SQL_CLAUSE, "\n$1")))
+    .join("")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n /g, "\n")
+    .trim();
+}
+
 const packageDbt: StageHandler = async ({ state, emit }) => {
   if (!state.sql || !state.modelName) {
     throw new Error("Nothing to package — no model was generated upstream");
@@ -870,7 +891,7 @@ const packageDbt: StageHandler = async ({ state, emit }) => {
   state.files = [
     {
       name: `${state.modelName}.sql`,
-      content: header + state.sql.trim() + "\n",
+      content: header + formatSql(state.sql.trim()) + "\n",
     },
     {
       name: `${state.modelName}.yml`,
