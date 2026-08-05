@@ -46,22 +46,22 @@ export async function graphql<T>(
   return body.data;
 }
 
-/** Create the tag if the catalog does not have it yet. */
+/**
+ * Make sure the tag exists before anything tries to apply it.
+ *
+ * createTag is idempotent on DataHub — it returns the URN whether or not the
+ * tag was already there, and it revives a soft-deleted one. So this is a
+ * single unconditional call: querying first would cost a round trip and would
+ * also mistake a soft-deleted tag for a usable one (the Tag type exposes no
+ * status field to tell them apart).
+ */
 export async function ensureTag(
   id: string,
   description: string,
-): Promise<"existed" | "created"> {
-  const urn = `urn:li:tag:${id}`;
-
-  const existing = await graphql<{ tag: { urn: string } | null }>(
-    `query($urn: String!) { tag(urn: $urn) { urn } }`,
-    { urn },
-  );
-  if (existing.tag) return "existed";
-
-  await graphql<{ createTag: string }>(
+): Promise<string> {
+  const result = await graphql<{ createTag: string }>(
     `mutation($input: CreateTagInput!) { createTag(input: $input) }`,
     { input: { id, name: id, description } },
   );
-  return "created";
+  return result.createTag;
 }
