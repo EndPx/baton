@@ -55,16 +55,8 @@ export function parseJsonLoose<T>(
   );
 }
 
-/** One chat turn constrained to a JSON schema. */
-export async function chatJson<T>(options: {
-  system: string;
-  user: string;
-  schemaName: string;
-  schema: Record<string, unknown>;
-  isValid: (value: T) => boolean;
-  maxTokens?: number;
-}): Promise<T> {
-  const res = await fetch(`${LLM_BASE_URL}/chat/completions`, {
+async function post(body: Record<string, unknown>): Promise<Response> {
+  return fetch(`${LLM_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -73,24 +65,65 @@ export async function chatJson<T>(options: {
       "HTTP-Referer": "https://baton.endpx.cloud",
       "X-Title": "Baton",
     },
-    body: JSON.stringify({
-      model: LLM_MODEL,
-      max_tokens: options.maxTokens ?? 8192,
-      temperature: 0,
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * One chat turn constrained to a JSON schema.
+ *
+ * Structured output is requested first, but not every provider/model pair
+ * accepts `response_format`. Rather than pinning Baton to the ones that do,
+ * a rejection falls back to asking for JSON in the prompt — the tolerant
+ * parser was already there to catch fenced or chatty output.
+ */
+export async function chatJson<T>(options: {
+  system: string;
+  user: string;
+  schemaName: string;
+  schema: Record<string, unknown>;
+  isValid: (value: T) => boolean;
+  maxTokens?: number;
+}): Promise<T> {
+  const base = {
+    model: LLM_MODEL,
+    max_tokens: options.maxTokens ?? 8192,
+    temperature: 0,
+    messages: [
+      { role: "system", content: options.system },
+      { role: "user", content: options.user },
+    ],
+  };
+
+  let res = await post({
+    ...base,
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: options.schemaName,
+        strict: true,
+        schema: options.schema,
+      },
+    },
+  });
+
+  // 400/422 here almost always means "I don't do response_format"; retry with
+  // the contract stated in the prompt instead.
+  if (res.status === 400 || res.status === 422) {
+    res = await post({
+      ...base,
       messages: [
-        { role: "system", content: options.system },
+        {
+          role: "system",
+          content: `${options.system}
+
+Reply with a single JSON object matching this schema, and nothing else — no prose, no code fence:
+${JSON.stringify(options.schema)}`,
+        },
         { role: "user", content: options.user },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: options.schemaName,
-          strict: true,
-          schema: options.schema,
-        },
-      },
-    }),
-  });
+    });
+  }
 
   if (!res.ok) {
     throw new Error(
