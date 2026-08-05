@@ -27,7 +27,11 @@ import {
 import "@xyflow/react/dist/style.css";
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronRight,
   Loader2,
+  PanelLeft,
+  PanelRight,
   Play,
   Sparkles,
   Square,
@@ -78,6 +82,9 @@ type RunState = "idle" | "running" | "awaiting" | "done" | "error";
 
 /** Canvas survives a refresh; nobody should lose a pipeline to a reload. */
 const STORAGE_KEY = "baton.canvas.v1";
+
+/** Which side panels are open — a browser preference, not part of the graph. */
+const LAYOUT_KEY = "baton.layout.v1";
 
 function graphToFlow(graph: PipelineGraph): {
   nodes: StageNodeType[];
@@ -191,6 +198,9 @@ function StudioInner() {
   const [composeGoal, setComposeGoal] = useState("");
   const [composing, setComposing] = useState(false);
   const [choice, setChoice] = useState<ChoiceRequest | null>(null);
+  const [showPalette, setShowPalette] = useState(true);
+  const [showPanel, setShowPanel] = useState(true);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const idRef = useRef(100);
   const runningRef = useRef(false);
@@ -268,6 +278,29 @@ function StudioInner() {
       // Corrupt or unavailable storage is not worth failing the app over.
     }
   }, [setNodes, setEdges]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LAYOUT_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { palette?: boolean; panel?: boolean };
+      if (typeof saved.palette === "boolean") setShowPalette(saved.palette);
+      if (typeof saved.panel === "boolean") setShowPanel(saved.panel);
+    } catch {
+      // preference only — never worth failing over
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        LAYOUT_KEY,
+        JSON.stringify({ palette: showPalette, panel: showPanel }),
+      );
+    } catch {
+      // preference only
+    }
+  }, [showPalette, showPanel]);
 
   useEffect(() => {
     if (skipFirstSaveRef.current) {
@@ -536,66 +569,41 @@ function StudioInner() {
           <span className="font-bold tracking-tight">Baton</span>
         </Link>
 
-        <input
-          className="min-w-64 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm outline-none placeholder:text-slate-600 focus:border-sky-500"
-          placeholder='e.g. "generate a dbt model joining orders and customers"'
-          value={goal}
-          onChange={(e) => setGoal(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && run()}
-          disabled={runState === "running"}
-        />
-
-        <label className="flex shrink-0 items-center gap-1.5 text-xs text-slate-300">
-          <input
-            type="checkbox"
-            checked={writeBack}
-            onChange={(e) => setWriteBack(e.target.checked)}
-            disabled={runState === "running"}
-          />
-          Write back
-        </label>
-
-        {runState === "running" ? (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={stop}
-            title="Stop this run"
-            className="border-red-500/40 font-semibold text-red-300 hover:bg-red-500/10"
-          >
-            <Square className="mr-1.5 h-3 w-3 fill-current" />
-            Stop
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            onClick={() => void run()}
-            disabled={!goal.trim() || blocking.length > 0}
-            title={
-              blocking.length > 0
-                ? "Fix the rule violations before running"
-                : "Run the pipeline (Ctrl/Cmd + Enter)"
-            }
-            className="font-semibold"
-          >
-            <Play className="mr-1.5 h-3.5 w-3.5" />
-            Run
-          </Button>
-        )}
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={runDemo}
-          disabled={runState === "running"}
-          title="Replay a recorded trace (no backend calls)"
-          className="border-white/15"
+        <button
+          onClick={() => setShowPalette((v) => !v)}
+          title={showPalette ? "Hide the stage palette" : "Show the stage palette"}
+          aria-pressed={showPalette}
+          className={`rounded-md p-1.5 transition-colors ${
+            showPalette
+              ? "bg-slate-800 text-slate-200"
+              : "text-slate-500 hover:text-slate-300"
+          }`}
         >
-          Demo
-        </Button>
+          <PanelLeft className="h-4 w-4" />
+        </button>
+
+        <span className="truncate text-xs text-slate-500">
+          {activeTemplate
+            ? TEMPLATES.find((t) => t.id === activeTemplate)?.name
+            : "Custom pipeline"}
+        </span>
+
+        <button
+          onClick={() => setShowPanel((v) => !v)}
+          title={showPanel ? "Hide the side panel" : "Show the side panel"}
+          aria-pressed={showPanel}
+          className={`ml-auto rounded-md p-1.5 transition-colors ${
+            showPanel
+              ? "bg-slate-800 text-slate-200"
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <PanelRight className="h-4 w-4" />
+        </button>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <Palette />
+        {showPalette && <Palette />}
 
         <main className="flex min-w-0 flex-1 flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-3 py-2">
@@ -695,6 +703,7 @@ function StudioInner() {
           </div>
         </main>
 
+        {showPanel && (
         <aside className="flex w-96 shrink-0 flex-col border-l border-slate-800">
           {/* The agent asking rather than guessing */}
           {choice && (
@@ -747,22 +756,31 @@ function StudioInner() {
 
           {/* Rules */}
           <section className="max-h-56 shrink-0 overflow-y-auto border-b border-slate-800">
-            <div className="flex items-center justify-between px-3 py-2">
+            <button
+              onClick={() => setRulesOpen((v) => !v)}
+              className="flex w-full items-center gap-1.5 px-3 py-2 text-left"
+            >
+              {rulesOpen ? (
+                <ChevronDown className="h-3 w-3 shrink-0 text-slate-500" />
+              ) : (
+                <ChevronRight className="h-3 w-3 shrink-0 text-slate-500" />
+              )}
               <h2 className="text-[10px] font-semibold tracking-[0.15em] text-slate-500 uppercase">
                 Rules
               </h2>
               {issues.length === 0 ? (
-                <span className="text-[10px] text-emerald-400">
+                <span className="ml-auto text-[10px] text-emerald-400">
                   ✓ pipeline is valid
                 </span>
               ) : (
-                <span className="text-[10px] text-amber-400">
+                <span className="ml-auto text-[10px] text-amber-400">
                   {blocking.length} blocking · {issues.length - blocking.length}{" "}
                   advisory
                 </span>
               )}
-            </div>
-            {issues.length > 0 && (
+            </button>
+            {/* Blocking violations are never collapsed away — they stop a run. */}
+            {issues.length > 0 && (rulesOpen || blocking.length > 0) && (
               <ul className="space-y-1 px-3 pb-2">
                 {issues.map((issue, i) => (
                   <li
@@ -845,7 +863,66 @@ function StudioInner() {
             </div>
           </section>
         </aside>
+        )}
       </div>
+
+      {/* Composer — the goal belongs where you type, at the bottom. */}
+      <footer className="flex items-center gap-3 border-t border-slate-800 bg-slate-950 px-4 py-3">
+        <input
+          className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm outline-none placeholder:text-slate-600 focus:border-sky-500"
+          placeholder='Describe the model you want — e.g. "join orders and customers, last 90 days"'
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && run()}
+          disabled={runState === "running"}
+        />
+
+        <label className="flex shrink-0 items-center gap-1.5 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={writeBack}
+            onChange={(e) => setWriteBack(e.target.checked)}
+            disabled={runState === "running"}
+          />
+          Write back
+        </label>
+
+        <Button
+          variant="outline"
+          onClick={runDemo}
+          disabled={runState === "running"}
+          title="Replay a recorded trace (no backend calls)"
+          className="shrink-0 border-white/15"
+        >
+          Demo
+        </Button>
+
+        {runState === "running" ? (
+          <Button
+            variant="outline"
+            onClick={stop}
+            title="Stop this run"
+            className="shrink-0 border-red-500/40 font-semibold text-red-300 hover:bg-red-500/10"
+          >
+            <Square className="mr-1.5 h-3 w-3 fill-current" />
+            Stop
+          </Button>
+        ) : (
+          <Button
+            onClick={() => void run()}
+            disabled={!goal.trim() || blocking.length > 0}
+            title={
+              blocking.length > 0
+                ? "Fix the rule violations before running"
+                : "Run the pipeline (Ctrl/Cmd + Enter)"
+            }
+            className="shrink-0 font-semibold"
+          >
+            <Play className="mr-1.5 h-4 w-4" />
+            Run
+          </Button>
+        )}
+      </footer>
     </div>
   );
 }
