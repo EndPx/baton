@@ -28,10 +28,24 @@ interface RunRequest {
  * Only stages that exist may run, and edges may only join nodes we were
  * given — the graph arrives from the browser, so it is input, not truth.
  */
-function parseGraph(raw: unknown): RunGraph | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
+type GraphParse =
+  | { supplied: false }
+  | { supplied: true; graph: RunGraph }
+  | { supplied: true; error: string };
+
+function parseGraph(raw: unknown): GraphParse {
+  // No graph at all is a fair request: the default relay stands in. A graph
+  // that was sent but holds nothing runnable is not — substituting a
+  // different pipeline would run something the caller never asked for.
+  if (!raw || typeof raw !== "object") return { supplied: false };
   const { nodes, edges } = raw as { nodes?: unknown; edges?: unknown };
-  if (!Array.isArray(nodes) || nodes.length === 0) return undefined;
+  if (!Array.isArray(nodes)) return { supplied: false };
+  if (nodes.length === 0) {
+    return {
+      supplied: true,
+      error: "The pipeline is empty — add at least one stage before running.",
+    };
+  }
 
   const parsedNodes = nodes.flatMap((node) => {
     if (!node || typeof node !== "object") return [];
@@ -40,7 +54,13 @@ function parseGraph(raw: unknown): RunGraph | undefined {
     if (!(kind in STAGE_HANDLERS)) return [];
     return [{ id, kind: kind as keyof typeof STAGE_HANDLERS }];
   });
-  if (parsedNodes.length === 0) return undefined;
+  if (parsedNodes.length === 0) {
+    return {
+      supplied: true,
+      error:
+        "None of the stages in the pipeline are recognised — every node was missing an id or named a stage that does not exist.",
+    };
+  }
 
   const known = new Set(parsedNodes.map((n) => n.id));
   const parsedEdges = (Array.isArray(edges) ? edges : []).flatMap((edge) => {
@@ -51,7 +71,7 @@ function parseGraph(raw: unknown): RunGraph | undefined {
     return [{ source, target }];
   });
 
-  return { nodes: parsedNodes, edges: parsedEdges };
+  return { supplied: true, graph: { nodes: parsedNodes, edges: parsedEdges } };
 }
 
 /** Dataset URNs only — never let arbitrary strings reach an MCP tool call. */
@@ -78,8 +98,14 @@ export async function POST(req: Request): Promise<Response> {
   if (!goal) {
     return Response.json({ error: "Missing 'goal'" }, { status: 400 });
   }
-  const writeBack = body.writeBack ?? false;
+  const writeBack = body.writeBack === true;
   const selections = parseSelections(body.selections);
+
+  const parsed = parseGraph(body.graph);
+  if (parsed.supplied && "error" in parsed) {
+    return Response.json({ error: parsed.error }, { status: 400 });
+  }
+  const graph = parsed.supplied ? parsed.graph : undefined;
 
   const encoder = new TextEncoder();
 
@@ -98,8 +124,6 @@ export async function POST(req: Request): Promise<Response> {
       req.signal.addEventListener("abort", () => {
         closed = true;
       });
-
-      const graph = parseGraph(body.graph);
 
       runPipeline({ goal, writeBack, selections, graph }, (traceEvent) => {
         send("trace", traceEvent);
