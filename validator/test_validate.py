@@ -42,6 +42,32 @@ def test_unknown_column_fails():
     assert any("nonexistent_col" in e.lower() for e in body["errors"])
 
 
+def test_output_columns_exclude_the_star_expansion():
+    """A `SELECT *` inside a CTE expands during qualify, so columns_used covers
+    every source column. A dbt schema file must declare only what the model
+    returns, which is what output_columns reports."""
+    r = client.post("/validate", json={
+        "sql": (
+            "with recent as (select * from {{ ref('orders') }}) "
+            "select c.name, r.order_id, r.amount from {{ ref('customers') }} c "
+            "join recent r on c.customer_id = r.customer_id"
+        ),
+        "schema_map": SCHEMA,
+        "dialect": "snowflake",
+    })
+    body = r.json()
+    assert body["valid"] is True, body
+
+    output = {c.lower() for c in body["output_columns"]}
+    assert output == {"name", "order_id", "amount"}, body["output_columns"]
+
+    # created_at is reachable only through the star expansion, so it is a
+    # column the query touches but not one the model returns.
+    assert "created_at" not in output
+    used = {c.split(".")[-1].replace('"', "").lower() for c in body["columns_used"]}
+    assert "created_at" in used, body["columns_used"]
+
+
 def test_parse_error_fails():
     r = client.post("/validate", json={
         "sql": "selec broken from",

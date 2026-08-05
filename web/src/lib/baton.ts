@@ -85,7 +85,10 @@ export interface ValidationReport {
   valid: boolean;
   stage: "parse" | "qualify" | null;
   errors: string[];
+  /** Every column the query references, including `SELECT *` expansions. */
   columnsUsed: string[];
+  /** The columns the model returns — what a dbt schema file must declare. */
+  outputColumns: string[];
   tablesUsed: string[];
 }
 

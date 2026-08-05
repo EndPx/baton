@@ -49,7 +49,7 @@ def validate(req: ValidateRequest) -> dict:
         tree = sqlglot.parse_one(sql, dialect=req.dialect)
     except ParseError as e:
         return {"valid": False, "stage": "parse", "errors": [str(e)],
-                "columns_used": [], "tables_used": []}
+                "columns_used": [], "tables_used": [], "output_columns": []}
 
     try:
         qualified = qualify(
@@ -60,9 +60,15 @@ def validate(req: ValidateRequest) -> dict:
         )
     except SqlglotError as e:
         return {"valid": False, "stage": "qualify", "errors": [str(e)],
-                "columns_used": [], "tables_used": []}
+                "columns_used": [], "tables_used": [], "output_columns": []}
 
     columns = sorted({c.sql(dialect=req.dialect) for c in qualified.find_all(exp.Column)})
     tables = sorted({t.name for t in qualified.find_all(exp.Table)})
+    # The columns the model actually returns. `columns_used` is every column
+    # the query touches — join keys, filter predicates, and everything a
+    # `SELECT *` expands to during qualify — so it badly over-states what a
+    # dbt schema file should declare.
+    output = list(getattr(qualified, "named_selects", None) or [])
     return {"valid": True, "stage": None, "errors": [],
-            "columns_used": columns, "tables_used": tables}
+            "columns_used": columns, "tables_used": tables,
+            "output_columns": output}

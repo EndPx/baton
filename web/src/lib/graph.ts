@@ -160,7 +160,7 @@ export async function runGraph(
       // The hand-off is the point of the whole design; say what is carried.
       const carried =
         lane === "codegen"
-          ? `${state.entities.length} entities, ${Object.keys(state.schemaMap).length} schemas, dialect=${state.dialect}`
+          ? `${state.entities.length} entities, ${state.schemas.length} schemas, dialect=${state.dialect}`
           : state.modelName
             ? `validated model "${state.modelName}" (${state.attempts} attempt${state.attempts > 1 ? "s" : ""})`
             : `${state.docs.length} description(s)`;
