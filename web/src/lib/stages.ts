@@ -843,6 +843,7 @@ function formatSql(sql: string): string {
     .join("")
     .replace(/[ \t]+/g, " ")
     .replace(/\n /g, "\n")
+    .replace(/[ \t]+$/gm, "")
     .trim();
 }
 
