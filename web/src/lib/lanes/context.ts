@@ -67,6 +67,42 @@ function tableNameFromUrn(urn: string): string {
   return parts[parts.length - 1];
 }
 
+/**
+ * Words that describe the *task* rather than the data. DataHub's index
+ * matches dataset names and descriptions, not sentences: searching for
+ * "generate a dbt model joining orders and customers" returns nothing, while
+ * "orders" returns 67 datasets. So the goal is reduced to its nouns first.
+ */
+const STOP_WORDS = new Set([
+  "generate", "create", "build", "make", "write", "produce", "add", "update",
+  "dbt", "model", "models", "sql", "query", "queries", "table", "tables",
+  "dataset", "datasets", "column", "columns", "schema", "pipeline",
+  "join", "joins", "joining", "joined", "filter", "filtered", "filtering",
+  "where", "select", "from", "with", "and", "or", "the", "for", "into",
+  "that", "this", "these", "those", "using", "use", "last", "past", "days",
+  "day", "months", "month", "years", "year", "week", "weeks", "please",
+  "document", "documents", "documented", "undocumented", "description",
+  "descriptions", "all", "any", "new", "old", "get", "show", "give",
+]);
+
+/** Reduce a natural-language goal to the handful of nouns worth searching. */
+export function keywordsFrom(goal: string): string[] {
+  const terms = Array.from(
+    new Set(
+      goal
+        .toLowerCase()
+        .replace(/[^a-z0-9_\s]/g, " ")
+        .split(/\s+/)
+        .filter(
+          (word) =>
+            word.length > 2 && !STOP_WORDS.has(word) && !/^\d+$/.test(word),
+        ),
+    ),
+  ).slice(0, 4);
+  // If the goal was nothing but task words, fall back to the raw text.
+  return terms.length > 0 ? terms : [goal];
+}
+
 /** Map a DataHub platform to a sqlglot dialect name. */
 function dialectForPlatform(platform: string): string {
   const map: Record<string, string> = {
@@ -94,22 +130,34 @@ export async function runContextLane(
     label: "Resolving entities mentioned in the goal",
   });
 
+  const terms = keywordsFrom(goal);
   emit({
     lane: "context",
     node: "resolve_entities",
     type: "tool_call",
-    label: `MCP search("${goal.slice(0, 60)}…")`,
-    data: { tool: "search", query: goal },
+    label: `MCP search(${terms.map((t) => `"${t}"`).join(", ")})`,
+    data: { tool: "search", terms },
   });
 
-  const search = await callTool<SearchResponse>("search", { query: goal });
-  const found = (search.data?.searchResults ?? [])
-    .map((r) => r.entity)
-    .filter(
-      (e): e is NonNullable<typeof e> =>
-        !!e?.urn && e.urn.includes(":dataset:"),
-    )
-    .slice(0, MAX_CANDIDATES);
+  // One search per term so every noun in the goal gets a look in, rather than
+  // the first one crowding out the rest.
+  const perTerm = Math.max(2, Math.ceil(MAX_CANDIDATES / terms.length));
+  const byUrn = new Map<string, { urn: string; name?: string; platform?: { name?: string }; description?: string }>();
+
+  for (const term of terms) {
+    const res = await callTool<SearchResponse>("search", { query: term });
+    let taken = 0;
+    for (const result of res.data?.searchResults ?? []) {
+      const entity = result.entity;
+      if (!entity?.urn || !entity.urn.includes(":dataset:")) continue;
+      if (!byUrn.has(entity.urn)) {
+        byUrn.set(entity.urn, { ...entity, urn: entity.urn });
+      }
+      if (++taken >= perTerm) break;
+    }
+  }
+
+  const found = Array.from(byUrn.values()).slice(0, MAX_CANDIDATES);
 
   if (found.length === 0) {
     throw new Error("No datasets found in DataHub matching the goal");
