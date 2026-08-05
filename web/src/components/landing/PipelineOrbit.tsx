@@ -83,7 +83,10 @@ const PIPELINE_NODES: OrbitNode[] = [
 
 export function PipelineOrbit() {
   return (
-    <section id="relay" className="relative border-t border-white/5 py-20">
+    <section
+      id="relay"
+      className="relative flex min-h-screen flex-col justify-center border-t border-white/5 py-20"
+    >
       <div className="mx-auto max-w-3xl px-6 text-center">
         <p className="text-xs font-semibold tracking-[0.2em] text-sky-400">
           THE RELAY

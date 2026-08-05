@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { AgentLanes } from "@/components/landing/AgentLanes";
 import { Hero } from "@/components/landing/Hero";
 import { PipelineOrbit } from "@/components/landing/PipelineOrbit";
+import { SiteHeader } from "@/components/landing/SiteHeader";
 import { WhoItsFor } from "@/components/landing/WhoItsFor";
 
 const PROBLEM_CARDS = [
@@ -61,50 +62,14 @@ const BUILD_CARDS = [
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="absolute inset-x-0 top-0 z-50">
-        <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-5">
-          <Link
-            href="/"
-            className="justify-self-start text-lg font-bold tracking-tight text-white [text-shadow:0_0_24px_rgba(255,255,255,0.45)]"
-          >
-            BATON
-          </Link>
-
-          <nav className="hidden items-center gap-8 justify-self-center text-sm text-white/45 md:flex">
-            <Link href="#relay" className="transition-colors hover:text-white">
-              Relay
-            </Link>
-            <Link href="#agents" className="transition-colors hover:text-white">
-              Agents
-            </Link>
-            <Link href="#fit" className="transition-colors hover:text-white">
-              Use cases
-            </Link>
-            <a
-              href="https://github.com/EndPx/baton"
-              target="_blank"
-              rel="noreferrer"
-              className="transition-colors hover:text-white"
-            >
-              Source
-            </a>
-          </nav>
-
-          <Link
-            href="/studio"
-            className="justify-self-end rounded-lg border border-white/25 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white hover:text-black"
-          >
-            Open Studio
-          </Link>
-        </div>
-      </header>
+      <SiteHeader />
 
       <Hero />
       <PipelineOrbit />
       <AgentLanes />
 
       {/* Why it matters */}
-      <section className="border-t border-white/5 py-20">
+      <section className="flex min-h-screen flex-col justify-center border-t border-white/5 py-20">
         <div className="mx-auto max-w-3xl px-6 text-center">
           <p className="text-xs font-semibold tracking-[0.2em] text-sky-400">
             WHY IT MATTERS
@@ -130,7 +95,10 @@ export default function LandingPage() {
       </section>
 
       {/* Build it your way */}
-      <section id="build" className="border-t border-white/5 py-20">
+      <section
+        id="build"
+        className="flex min-h-screen flex-col justify-center border-t border-white/5 py-20"
+      >
         <div className="mx-auto max-w-3xl px-6 text-center">
           <p className="text-xs font-semibold tracking-[0.2em] text-violet-400">
             THE STUDIO

@@ -18,7 +18,7 @@ const STATS = [
 
 export function Hero() {
   return (
-    <section className="relative isolate overflow-hidden bg-[#060607]">
+    <section className="relative isolate flex min-h-screen flex-col justify-center overflow-hidden bg-[#060607]">
       {/* Fine engineering grid */}
       <div
         aria-hidden
@@ -35,7 +35,7 @@ export function Hero() {
         className="absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-b from-transparent to-slate-950"
       />
 
-      <div className="mx-auto max-w-5xl px-6 pt-28 pb-20 text-center sm:pt-32">
+      <div className="mx-auto w-full max-w-5xl px-6 pt-24 pb-16 text-center">
         <p className="text-[10px] font-medium tracking-[0.3em] text-white/25 uppercase">
           Built for the DataHub Agent Hackathon
         </p>
@@ -65,7 +65,7 @@ export function Hero() {
           </Link>
         </div>
 
-        <dl className="mt-24 flex flex-wrap items-center justify-center divide-x divide-white/10">
+        <dl className="mt-16 flex flex-wrap items-center justify-center divide-x divide-white/10">
           {STATS.map((stat) => (
             <div key={stat.label} className="px-6 py-2 sm:px-10">
               <dt className="text-2xl font-semibold tracking-tight text-white/90">

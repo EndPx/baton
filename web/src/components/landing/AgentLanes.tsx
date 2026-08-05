@@ -67,7 +67,10 @@ const LANES = [
 
 export function AgentLanes() {
   return (
-    <section id="agents" className="border-t border-white/5 py-20">
+    <section
+      id="agents"
+      className="flex min-h-screen flex-col justify-center border-t border-white/5 py-14"
+    >
       <div className="mx-auto max-w-3xl px-6 text-center">
         <p className="text-xs font-semibold tracking-[0.2em] text-emerald-400">
           THE TEAM
@@ -85,11 +88,11 @@ export function AgentLanes() {
         </p>
       </div>
 
-      <div className="mx-auto mt-12 grid max-w-6xl gap-4 px-6 lg:grid-cols-3">
+      <div className="mx-auto mt-10 grid max-w-6xl gap-4 px-6 lg:grid-cols-3">
         {LANES.map((lane, index) => (
           <div
             key={lane.key}
-            className={`flex flex-col rounded-xl border bg-white/[0.03] p-6 transition-colors ${lane.ring} hover:bg-white/[0.05]`}
+            className={`flex flex-col rounded-xl border bg-white/[0.03] p-5 transition-colors ${lane.ring} hover:bg-white/[0.05]`}
           >
             <div className="flex items-center gap-2.5">
               <lane.icon className={`h-5 w-5 ${lane.accent}`} />
@@ -103,7 +106,7 @@ export function AgentLanes() {
               {lane.job}
             </p>
 
-            <ul className="mt-4 space-y-2">
+            <ul className="mt-3.5 space-y-1.5">
               {lane.does.map((item) => (
                 <li
                   key={item}
@@ -115,7 +118,7 @@ export function AgentLanes() {
               ))}
             </ul>
 
-            <div className="mt-5 border-t border-white/10 pt-4">
+            <div className="mt-4 border-t border-white/10 pt-3.5">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
                 <ArrowDown className="h-3 w-3" />
                 {index === LANES.length - 1 ? "Returns" : "Hands off"}
@@ -127,7 +130,7 @@ export function AgentLanes() {
               </code>
             </div>
 
-            <div className="mt-5 border-t border-white/10 pt-4">
+            <div className="mt-4 border-t border-white/10 pt-3.5">
               <h4 className="text-xs font-semibold text-slate-200">
                 {lane.edgeTitle}
               </h4>
@@ -139,8 +142,8 @@ export function AgentLanes() {
         ))}
       </div>
 
-      <div className="mx-auto mt-10 max-w-3xl px-6">
-        <p className="rounded-xl border border-white/10 bg-white/[0.02] px-5 py-4 text-center text-sm leading-relaxed text-slate-400">
+      <div className="mx-auto mt-8 max-w-3xl px-6">
+        <p className="rounded-xl border border-white/10 bg-white/[0.02] px-5 py-3.5 text-center text-sm leading-relaxed text-slate-400">
           The pay-off is that every hand-off is a checkpoint. When a run goes
           wrong you can see <em>which</em> leg dropped the baton — a table that
           resolved to the wrong dataset looks nothing like a column that failed

@@ -47,7 +47,10 @@ const NOT_FOR = [
 
 export function WhoItsFor() {
   return (
-    <section id="fit" className="border-t border-white/5 py-20">
+    <section
+      id="fit"
+      className="flex min-h-screen flex-col justify-center border-t border-white/5 py-20"
+    >
       <div className="mx-auto max-w-3xl px-6 text-center">
         <p className="text-xs font-semibold tracking-[0.2em] text-sky-400">
           IS THIS FOR YOU?
