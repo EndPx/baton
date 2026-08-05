@@ -25,6 +25,8 @@ import type {
 
 const MAX_CANDIDATES = 8;
 const MAX_CORRECTIONS = 2;
+/** Historical SQL is only a style hint, so a couple of datasets is enough. */
+const QUERY_SAMPLE_LIMIT = 2;
 const BATON_TAG = "generated-by-baton";
 const VALIDATOR_URL = process.env.VALIDATOR_URL ?? "http://localhost:8100";
 
@@ -592,13 +594,17 @@ const datasetQueries: StageHandler = async ({ state, emit }) => {
     label: "Reading historical SQL written against these tables",
   });
 
+  const urns = state.entities.map((e) => e.urn);
+  const sampled = state.entities.slice(0, QUERY_SAMPLE_LIMIT);
+  const skipped = state.entities.length - sampled.length;
+
   const collected: unknown[] = [];
-  for (const entity of state.entities.slice(0, 2)) {
+  for (const entity of sampled) {
     emit({
       lane: "context",
       node: "dataset_queries",
       type: "tool_call",
-      label: `MCP get_dataset_queries(${entity.name})`,
+      label: `MCP get_dataset_queries(${labelForUrn(entity.urn, urns)})`,
     });
     const res = await callTool(
       "get_dataset_queries",
@@ -613,8 +619,14 @@ const datasetQueries: StageHandler = async ({ state, emit }) => {
     lane: "context",
     node: "dataset_queries",
     type: "node_complete",
+    // Say when the cap left datasets unread, rather than reporting the sample
+    // as if it were the whole selection.
     label: collected.length
-      ? `Collected sample queries for ${collected.length} dataset(s)`
+      ? `Collected sample queries for ${collected.length} dataset(s)${
+          skipped > 0
+            ? ` — sampled the first ${QUERY_SAMPLE_LIMIT} of ${state.entities.length}`
+            : ""
+        }`
       : "No recorded queries for these datasets (non-blocking)",
   });
 };
