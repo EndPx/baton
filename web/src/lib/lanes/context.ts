@@ -74,33 +74,68 @@ function tableNameFromUrn(urn: string): string {
  * "orders" returns 67 datasets. So the goal is reduced to its nouns first.
  */
 const STOP_WORDS = new Set([
+  // what to do
   "generate", "create", "build", "make", "write", "produce", "add", "update",
+  "rename", "migrate", "migration", "backfill", "refactor", "deprecate",
+  "replace", "fix", "change", "modify", "move", "copy", "drop", "delete",
+  "document", "documents", "documented", "undocumented", "describe",
+  "description", "descriptions", "get", "show", "give", "find", "list",
+  // what to make
   "dbt", "model", "models", "sql", "query", "queries", "table", "tables",
-  "dataset", "datasets", "column", "columns", "schema", "pipeline",
+  "dataset", "datasets", "column", "columns", "field", "fields", "schema",
+  "pipeline", "report", "file", "files",
+  // grammar
   "join", "joins", "joining", "joined", "filter", "filtered", "filtering",
   "where", "select", "from", "with", "and", "or", "the", "for", "into",
-  "that", "this", "these", "those", "using", "use", "last", "past", "days",
-  "day", "months", "month", "years", "year", "week", "weeks", "please",
-  "document", "documents", "documented", "undocumented", "description",
-  "descriptions", "all", "any", "new", "old", "get", "show", "give",
+  "that", "this", "these", "those", "using", "use", "all", "any", "new",
+  "old", "everything", "please", "downstream", "upstream", "its", "their",
+  "last", "past", "days", "day", "months", "month", "years", "year",
+  "week", "weeks", "recent",
 ]);
 
-/** Reduce a natural-language goal to the handful of nouns worth searching. */
+/** Words that introduce the thing being acted on: "…on fact_orders". */
+const OBJECT_MARKERS = new Set(["on", "from", "in", "of", "to", "against", "for"]);
+
+/**
+ * Reduce a natural-language goal to the handful of terms worth searching, best
+ * first.
+ *
+ * Ranking matters more than filtering. "rename order_total to gross_amount on
+ * fact_orders" has four survivable words, but only `fact_orders` names a
+ * dataset — the others are column names and a verb. Taking them in written
+ * order spends the search budget on terms that match nothing and starves the
+ * one that would have worked.
+ */
 export function keywordsFrom(goal: string): string[] {
-  const terms = Array.from(
-    new Set(
-      goal
-        .toLowerCase()
-        .replace(/[^a-z0-9_\s]/g, " ")
-        .split(/\s+/)
-        .filter(
-          (word) =>
-            word.length > 2 && !STOP_WORDS.has(word) && !/^\d+$/.test(word),
-        ),
-    ),
-  ).slice(0, 4);
+  const words = goal
+    .toLowerCase()
+    .replace(/[^a-z0-9_.\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const scored = new Map<string, number>();
+
+  words.forEach((word, index) => {
+    if (word.length <= 2 || STOP_WORDS.has(word) || /^\d+$/.test(word)) return;
+
+    let score = 1;
+    // Underscores and dots are how warehouses spell names.
+    if (word.includes("_") || word.includes(".")) score += 3;
+    // "on fact_orders", "from raw_events" — the object of the sentence.
+    if (index > 0 && OBJECT_MARKERS.has(words[index - 1])) score += 2;
+    // Later mentions tend to be the target, earlier ones the verb's leftovers.
+    score += index / words.length;
+
+    scored.set(word, Math.max(scored.get(word) ?? 0, score));
+  });
+
+  const ranked = [...scored.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([word]) => word)
+    .slice(0, 4);
+
   // If the goal was nothing but task words, fall back to the raw text.
-  return terms.length > 0 ? terms : [goal];
+  return ranked.length > 0 ? ranked : [goal];
 }
 
 /** Map a DataHub platform to a sqlglot dialect name. */
@@ -139,12 +174,16 @@ export async function runContextLane(
     data: { tool: "search", terms },
   });
 
-  // One search per term so every noun in the goal gets a look in, rather than
-  // the first one crowding out the rest.
-  const perTerm = Math.max(2, Math.ceil(MAX_CANDIDATES / terms.length));
-  const byUrn = new Map<string, { urn: string; name?: string; platform?: { name?: string }; description?: string }>();
+  // One search per term, but the budget is not split evenly: the best-ranked
+  // term is the likeliest dataset name, so it gets the most slots and its
+  // hits land first (insertion order survives the dedupe below).
+  const byUrn = new Map<
+    string,
+    { urn: string; name?: string; platform?: { name?: string }; description?: string }
+  >();
 
-  for (const term of terms) {
+  for (const [rank, term] of terms.entries()) {
+    const perTerm = rank === 0 ? 4 : 2;
     const res = await callTool<SearchResponse>("search", { query: term });
     let taken = 0;
     for (const result of res.data?.searchResults ?? []) {

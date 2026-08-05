@@ -186,7 +186,7 @@ Fix the SQL so every referenced column exists in the schema map.`;
         lane: "codegen",
         node: "validate",
         type: "node_complete",
-        label: `Valid ✓ — ${validation.columnsUsed.length} columns across ${validation.tablesUsed.length} tables`,
+        label: `Valid ✓ — ${validation.columnsUsed.length} column${validation.columnsUsed.length === 1 ? "" : "s"} across ${validation.tablesUsed.length} table${validation.tablesUsed.length === 1 ? "" : "s"}`,
         data: validation,
       });
       break;
