@@ -75,6 +75,25 @@ the proof that grounding works.
 
 Next.js (TypeScript) · DataHub MCP Server · sqlglot · any OpenAI-compatible LLM · XyFlow (react-flow)
 
+## Credits and disclosures
+
+Baton was built during the hackathon submission period. Beyond the usual
+frameworks and libraries, these pieces came from elsewhere:
+
+- **shadcn/ui** (MIT) — the `badge`, `button` and `card` primitives in
+  `web/src/components/ui/`, copied as that project intends.
+- **Radial orbital timeline** — the animation in the landing page's *The relay*
+  section began as a community-shared React component. It was restructured for
+  Baton: React 19 ref semantics, a container-measured orbit radius, and the
+  node data replaced with the pipeline's real stages and the tools each one
+  calls.
+- **DataHub** (Apache 2.0), **sqlglot** (MIT), **Next.js**, **XyFlow**,
+  **Tailwind CSS**, **lucide** — used as dependencies.
+
+Everything else — the three agent lanes, the graph rules, the stage palette,
+the validation loop, the write-back, the trace UI — is original to this
+submission.
+
 ## License
 
 [Apache 2.0](LICENSE)
