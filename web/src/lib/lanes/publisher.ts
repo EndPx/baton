@@ -7,6 +7,7 @@
  */
 
 import { callTool } from "@/lib/mcp";
+import { ensureTag } from "@/lib/datahub";
 import type {
   CodegenResult,
   GeneratedFile,
@@ -93,6 +94,27 @@ export async function runPublisherLane(
     });
 
     const urns = result.context.entities.map((e) => e.urn);
+
+    // add_tags refuses a tag the catalog has never heard of, so make sure it
+    // exists before trying to apply it.
+    try {
+      const state = await ensureTag(
+        BATON_TAG,
+        "Applied by Baton to datasets that grounded a generated artifact",
+      );
+      if (state === "created") {
+        emit({
+          lane: "publisher",
+          node: "write_back",
+          type: "tool_result",
+          label: `Created the "${BATON_TAG}" tag in DataHub (first run on this catalog)`,
+        });
+      }
+    } catch (err) {
+      errors.push(
+        `could not ensure tag "${BATON_TAG}": ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
 
     emit({
       lane: "publisher",

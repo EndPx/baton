@@ -6,7 +6,11 @@
 
 **A metadata-grounded codegen relay for DataHub.**
 
-🔗 **Live demo:** [baton-roan.vercel.app](https://baton-roan.vercel.app) — click **▶ Demo** to watch the relay animate.
+🔗 **Live demo:** **[baton.endpx.cloud](https://baton.endpx.cloud)** — no signup, no setup.
+
+Open the [Studio](https://baton.endpx.cloud/studio) and press **Run**. It hits a real DataHub instance (827 entities from the `showcase-ecommerce` datapack): the Context agent searches the catalog, stops to ask which `orders` you meant, pulls the real columns, and the run ends with a validated dbt model and a `generated-by-baton` tag written back onto the source datasets. **▶ Demo** replays a recorded trace if you would rather not wait for a live run.
+
+> The app is co-located with DataHub on its own host, because GMS is bound to localhost — a cloud-hosted frontend would have no route to the catalog it claims to read.
 
 Baton is a multi-agent pipeline that turns a natural-language goal — *"generate a dbt model joining orders and customers, filtered to the last 90 days"* — into a validated, PR-ready dbt model, grounded in what your [DataHub](https://datahub.com) catalog actually knows: real schemas, real lineage, real ownership.
 
