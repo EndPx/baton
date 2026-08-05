@@ -6,7 +6,7 @@ import "server-only";
  * The model may only choose stage kinds that exist in the palette (enforced
  * by the tool schema enum and re-checked here), and it never chooses layout:
  * positions are computed from the dependency graph so the canvas stays
- * readable. The Anthropic call happens here, server-side, so the API key is
+ * readable. The LLM call happens here, server-side, so the API key is
  * never exposed to the browser.
  */
 

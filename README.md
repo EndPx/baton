@@ -36,7 +36,7 @@ Every MCP tool call streams to a live trace UI, so you watch the baton move betw
 
 ## Self-hosting
 
-Requirements: a DataHub instance (e.g. `datahub docker quickstart`), an Anthropic API key.
+Requirements: a DataHub instance (e.g. `datahub docker quickstart`) and an API key for any OpenAI-compatible LLM endpoint — the hosted demo runs `meta/llama-3.1-70b-instruct` on NVIDIA NIM, but OpenRouter, Together or a local vLLM work by changing `LLM_BASE_URL`.
 
 ```bash
 cp .env.example .env   # fill in your values
@@ -45,7 +45,7 @@ cp .env.example .env   # fill in your values
 
 ## Tech
 
-Next.js (TypeScript) · Anthropic API · DataHub MCP Server · sqlglot · XyFlow (react-flow)
+Next.js (TypeScript) · DataHub MCP Server · sqlglot · any OpenAI-compatible LLM · XyFlow (react-flow)
 
 ## License
 

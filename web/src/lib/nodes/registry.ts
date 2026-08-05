@@ -84,7 +84,7 @@ export const STAGES: StageDef[] = [
     kind: "generate_sql",
     label: "Generate SQL",
     lane: "codegen",
-    tool: "Anthropic API",
+    tool: "LLM API (OpenAI-compatible)",
     description:
       "Write a dbt model constrained to the fetched schema, in the dialect the platform reports.",
     icon: FileCode2,
@@ -93,7 +93,7 @@ export const STAGES: StageDef[] = [
     kind: "generate_docs",
     label: "Generate descriptions",
     lane: "codegen",
-    tool: "Anthropic API",
+    tool: "LLM API (OpenAI-compatible)",
     description:
       "Draft column and table descriptions from schema, lineage and observed usage.",
     icon: FileText,

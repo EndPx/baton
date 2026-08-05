@@ -1,7 +1,7 @@
 /**
  * POST /api/run — runs the Baton pipeline and streams TraceEvents over SSE.
  *
- * Server-side only: all Anthropic + DataHub MCP calls happen here.
+ * Server-side only: all LLM + DataHub MCP calls happen here.
  * SSE events: `trace` (TraceEvent), `choice` (ChoiceRequest), `result`
  * (PublishResult), `error`.
  *

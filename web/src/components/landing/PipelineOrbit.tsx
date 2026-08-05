@@ -53,7 +53,7 @@ const PIPELINE_NODES: OrbitNode[] = [
     id: 4,
     title: "Generate SQL",
     lane: "codegen",
-    tool: "Anthropic API · claude-opus-5",
+    tool: "NVIDIA NIM · llama-3.1-70b",
     content:
       "Writes a dbt model constrained to the fetched schema map, using ref() macros and the SQL dialect read from the platform metadata — not a dialect we assumed.",
     icon: FileCode2,

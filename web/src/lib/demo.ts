@@ -32,7 +32,7 @@ export const DEMO_STEPS: DemoStep[] = [
   { delay: 500, event: { lane: "context", node: "handoff", type: "handoff", label: "Baton → Codegen: 2 entities, 2 schemas, dialect=snowflake" } },
 
   { delay: 600, event: { lane: "codegen", node: "generate_sql", type: "node_start", label: "Generating dbt SQL grounded in the fetched schema" } },
-  { delay: 900, event: { lane: "codegen", node: "generate_sql", type: "tool_call", label: "Anthropic API: claude-opus-5 (structured output)" } },
+  { delay: 900, event: { lane: "codegen", node: "generate_sql", type: "tool_call", label: "LLM: meta/llama-3.1-70b-instruct (structured output)" } },
   { delay: 1600, event: { lane: "codegen", node: "generate_sql", type: "node_complete", label: 'Generated model "orders_with_customers_90d" (612 chars)' } },
   { delay: 400, event: { lane: "codegen", node: "validate", type: "node_start", label: "Validating column references against the real schema (sqlglot)" } },
   { delay: 700, event: { lane: "codegen", node: "validate", type: "tool_call", label: "POST validator /validate (dialect=snowflake)" } },

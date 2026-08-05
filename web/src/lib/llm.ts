@@ -7,15 +7,17 @@ import "server-only";
  * endpoint works — OpenRouter, NVIDIA NIM, Together, a local vLLM — so
  * changing model or vendor is configuration, not a rewrite.
  *
- *   LLM_BASE_URL  https://openrouter.ai/api/v1  (default)
- *                 https://integrate.api.nvidia.com/v1  (NVIDIA)
- *   LLM_MODEL     moonshotai/kimi-k2.6         (default)
+ *   LLM_BASE_URL  https://integrate.api.nvidia.com/v1  (default, NVIDIA NIM)
+ *                 https://openrouter.ai/api/v1         (OpenRouter)
+ *   LLM_MODEL     meta/llama-3.1-70b-instruct          (default)
  *   LLM_API_KEY   provider key, server-side only
  */
 
-const LLM_BASE_URL = process.env.LLM_BASE_URL ?? "https://openrouter.ai/api/v1";
+const LLM_BASE_URL =
+  process.env.LLM_BASE_URL ?? "https://integrate.api.nvidia.com/v1";
 
-export const LLM_MODEL = process.env.LLM_MODEL ?? "moonshotai/kimi-k2.6";
+export const LLM_MODEL =
+  process.env.LLM_MODEL ?? "meta/llama-3.1-70b-instruct";
 
 function requireEnv(name: string): string {
   const value = process.env[name];

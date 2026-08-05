@@ -5,7 +5,7 @@
  * the rotation, centers it, and highlights the nodes it hands off to.
  *
  * Adapted for Baton: each node is a real stage of the relay, and the card
- * shows the actual tool that stage calls (MCP tool, Anthropic API, sqlglot)
+ * shows the actual tool that stage calls (MCP tool, LLM API, sqlglot)
  * rather than a decorative progress metric.
  */
 
