@@ -125,7 +125,8 @@ async function consumeSse(
 function Palette() {
   const lanes: Lane[] = ["context", "codegen", "publisher"];
   return (
-    <aside className="w-56 shrink-0 overflow-y-auto border-r border-slate-800 bg-slate-950 p-3">
+    // Sky, because this is where the Context lane's stages come from.
+    <aside className="w-56 shrink-0 overflow-y-auto border-r border-sky-400/15 bg-[#070c14] p-3">
       <p className="px-1 pb-2 text-[10px] font-semibold tracking-[0.15em] text-slate-500 uppercase">
         Stage palette
       </p>
@@ -539,8 +540,10 @@ function StudioInner() {
   }, [loadTemplate]);
 
   return (
-    <div className="flex h-screen flex-col bg-slate-950 text-slate-100">
-      <header className="flex flex-wrap items-center gap-3 border-b border-slate-800 px-4 py-2.5">
+    // The canvas is the deepest surface; the panels around it are raised and
+    // tinted with their lane's colour so each zone reads as its own place.
+    <div className="flex h-screen flex-col bg-[#05070c] text-slate-100">
+      <header className="flex flex-wrap items-center gap-3 border-b border-white/[0.07] bg-[#0a0d14] px-4 py-2.5">
         <Link href="/" className="flex shrink-0 items-center gap-2.5">
           <Image
             src="/logo.png"
@@ -688,7 +691,7 @@ function StudioInner() {
         </main>
 
         {showPanel && (
-        <aside className="flex w-96 shrink-0 flex-col border-l border-slate-800">
+        <aside className="flex w-96 shrink-0 flex-col border-l border-emerald-400/15 bg-[#060f0c]">
           {/* The agent asking rather than guessing */}
           {choice && (
             <ChoicePanel
@@ -843,7 +846,7 @@ function StudioInner() {
       </div>
 
       {/* Composer — the goal belongs where you type, at the bottom. */}
-      <footer className="flex items-center gap-3 border-t border-slate-800 bg-slate-950 px-4 py-3">
+      <footer className="flex items-center gap-3 border-t border-violet-400/20 bg-[#0b0916] px-4 py-3">
         <input
           className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm outline-none placeholder:text-slate-600 focus:border-sky-500"
           placeholder='Describe the model you want — e.g. "join orders and customers, last 90 days"'
