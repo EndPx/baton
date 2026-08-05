@@ -25,6 +25,13 @@ export interface StageRunState {
 }
 
 const NODE_TO_KINDS: Record<string, StageKind[]> = {
+  // The executor names stages by kind; these are identity mappings.
+  search_entities: ["search_entities"],
+  validate_sql: ["validate_sql"],
+  package_dbt: ["package_dbt"],
+  write_back_tags: ["write_back_tags"],
+  write_back_description: ["write_back_description"],
+  // Legacy names, still emitted by the recorded demo trace.
   resolve_entities: ["search_entities"],
   fetch_schema: ["fetch_schema"],
   fetch_lineage: ["fetch_lineage"],
@@ -71,6 +78,34 @@ export function deriveStageStates(
 
       states[kind] = { status, detail: event.label };
     }
+  }
+
+  return states;
+}
+
+/**
+ * The same fold, keyed by the canvas node the event came from. Preferred over
+ * the kind-based map: a graph may hold two stages of the same kind, and only
+ * the one that ran should light up.
+ */
+export function deriveNodeStates(
+  events: TraceEvent[],
+): Record<string, StageRunState> {
+  const states: Record<string, StageRunState> = {};
+
+  for (const event of events) {
+    if (!event.nodeId || event.node === "handoff") continue;
+    const prev = states[event.nodeId];
+    const settled = prev?.status === "done" || prev?.status === "error";
+    let status: StageStatus = prev?.status ?? "idle";
+
+    if (event.type === "error") status = "error";
+    else if (event.type === "node_skipped") status = "skipped";
+    else if (event.type === "node_complete") status = "done";
+    else if (event.type === "node_start") status = "running";
+    else if (!settled) status = "running";
+
+    states[event.nodeId] = { status, detail: event.label };
   }
 
   return states;

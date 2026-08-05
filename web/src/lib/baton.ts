@@ -22,8 +22,10 @@ export type TraceEventType =
 export interface TraceEvent {
   id: string;
   lane: Lane;
-  /** Node within the lane, e.g. "resolve_entities", "generate_sql" */
+  /** Node within the lane, e.g. "search_entities", "generate_sql" */
   node: string;
+  /** Id of the canvas node this came from, so the right box lights up. */
+  nodeId?: string;
   type: TraceEventType;
   /** Human-readable one-liner shown in the trace UI */
   label: string;

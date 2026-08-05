@@ -61,22 +61,11 @@ import {
   TEMPLATES,
   type PipelineGraph,
 } from "@/lib/templates";
-import { deriveStageStates } from "@/lib/traceMapping";
+import { deriveNodeStates, deriveStageStates } from "@/lib/traceMapping";
 import { DEMO_GOAL, DEMO_RESULT, DEMO_STEPS } from "@/lib/demo";
 import type { ChoiceRequest, PublishResult, TraceEvent } from "@/lib/baton";
 
 const DND_MIME = "application/baton-stage";
-
-/** Stage kinds the current runner actually executes. */
-const EXECUTABLE_KINDS: StageKind[] = [
-  "search_entities",
-  "fetch_schema",
-  "fetch_lineage",
-  "generate_sql",
-  "validate_sql",
-  "package_dbt",
-  "write_back_tags",
-];
 
 type RunState = "idle" | "running" | "awaiting" | "done" | "error";
 
@@ -223,16 +212,11 @@ function StudioInner() {
   );
   const blocking = useMemo(() => blockingIssues(issues), [issues]);
 
-  const notWired = useMemo(
-    () =>
-      [...new Set(graphNodes.map((n) => n.kind))].filter(
-        (k) => !EXECUTABLE_KINDS.includes(k),
-      ),
-    [graphNodes],
-  );
-
   // ── Live status from the trace ───────────────────────────────────────
   const stageStates = useMemo(() => deriveStageStates(events), [events]);
+  // Real runs attribute every event to the node it came from; the recorded
+  // demo predates that, so it still falls back to matching by stage kind.
+  const nodeStates = useMemo(() => deriveNodeStates(events), [events]);
 
   const summary = useMemo(() => {
     if (events.length === 0) return null;
@@ -328,7 +312,7 @@ function StudioInner() {
   const displayNodes = useMemo(
     () =>
       nodes.map((n) => {
-        const state = stageStates[n.data.kind];
+        const state = nodeStates[n.id] ?? stageStates[n.data.kind];
         return {
           ...n,
           data: {
@@ -796,14 +780,6 @@ function StudioInner() {
                   </li>
                 ))}
               </ul>
-            )}
-            {notWired.length > 0 && (
-              <p className="px-3 pb-2 text-[10px] leading-snug text-slate-500">
-                Runner coverage:{" "}
-                {notWired.map((k) => STAGE_BY_KIND[k].label).join(", ")}{" "}
-                {notWired.length === 1 ? "is" : "are"} on the canvas but not yet
-                executed by the backend — those stages stay idle during a run.
-              </p>
             )}
           </section>
 

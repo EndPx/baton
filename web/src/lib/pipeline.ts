@@ -1,33 +1,36 @@
+import "server-only";
+
 /**
- * Baton pipeline orchestrator — runs the fixed three-lane relay:
- * Context → Codegen → Publisher, emitting TraceEvents throughout.
+ * Entry point for a run. The graph the user drew decides what executes; when
+ * no graph is supplied (an API caller, say) the flagship template stands in.
  */
 
-import { runContextLane } from "@/lib/lanes/context";
-import { runCodegenLane } from "@/lib/lanes/codegen";
-import { runPublisherLane } from "@/lib/lanes/publisher";
-import type { PublishResult, TraceEvent, TraceEmitter } from "@/lib/baton";
+import { runGraph, type RunGraph } from "@/lib/graph";
+import { DEFAULT_TEMPLATE } from "@/lib/templates";
+import type { PublishResult, TraceEvent } from "@/lib/baton";
 
 export interface PipelineOptions {
   goal: string;
   writeBack: boolean;
   /** Dataset URNs the user picked when an earlier run paused to ask. */
   selections?: string[];
+  /** The canvas graph. Falls back to the default relay when absent. */
+  graph?: RunGraph;
+}
+
+export function defaultGraph(): RunGraph {
+  return {
+    nodes: DEFAULT_TEMPLATE.nodes.map((n) => ({ id: n.id, kind: n.kind })),
+    edges: DEFAULT_TEMPLATE.edges.map((e) => ({
+      source: e.source,
+      target: e.target,
+    })),
+  };
 }
 
 export async function runPipeline(
   options: PipelineOptions,
   onEvent: (event: TraceEvent) => void,
 ): Promise<PublishResult> {
-  let seq = 0;
-  const emit: TraceEmitter = (e) => {
-    onEvent({ ...e, id: `ev_${++seq}`, ts: Date.now() });
-  };
-
-  const context = await runContextLane(options.goal, emit, {
-    selections: options.selections,
-  });
-  const codegen = await runCodegenLane(context, emit);
-  const result = await runPublisherLane(codegen, emit, options.writeBack);
-  return result;
+  return runGraph(options.graph ?? defaultGraph(), options, onEvent);
 }

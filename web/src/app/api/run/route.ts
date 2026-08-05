@@ -11,7 +11,8 @@
  */
 
 import { runPipeline } from "@/lib/pipeline";
-import { AmbiguousEntitiesError } from "@/lib/lanes/context";
+import { AmbiguousEntitiesError, STAGE_HANDLERS } from "@/lib/stages";
+import type { RunGraph } from "@/lib/graph";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +21,37 @@ interface RunRequest {
   goal?: string;
   writeBack?: boolean;
   selections?: unknown;
+  graph?: unknown;
+}
+
+/**
+ * Only stages that exist may run, and edges may only join nodes we were
+ * given — the graph arrives from the browser, so it is input, not truth.
+ */
+function parseGraph(raw: unknown): RunGraph | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const { nodes, edges } = raw as { nodes?: unknown; edges?: unknown };
+  if (!Array.isArray(nodes) || nodes.length === 0) return undefined;
+
+  const parsedNodes = nodes.flatMap((node) => {
+    if (!node || typeof node !== "object") return [];
+    const { id, kind } = node as { id?: unknown; kind?: unknown };
+    if (typeof id !== "string" || typeof kind !== "string") return [];
+    if (!(kind in STAGE_HANDLERS)) return [];
+    return [{ id, kind: kind as keyof typeof STAGE_HANDLERS }];
+  });
+  if (parsedNodes.length === 0) return undefined;
+
+  const known = new Set(parsedNodes.map((n) => n.id));
+  const parsedEdges = (Array.isArray(edges) ? edges : []).flatMap((edge) => {
+    if (!edge || typeof edge !== "object") return [];
+    const { source, target } = edge as { source?: unknown; target?: unknown };
+    if (typeof source !== "string" || typeof target !== "string") return [];
+    if (!known.has(source) || !known.has(target)) return [];
+    return [{ source, target }];
+  });
+
+  return { nodes: parsedNodes, edges: parsedEdges };
 }
 
 /** Dataset URNs only — never let arbitrary strings reach an MCP tool call. */
@@ -67,7 +99,9 @@ export async function POST(req: Request): Promise<Response> {
         closed = true;
       });
 
-      runPipeline({ goal, writeBack, selections }, (traceEvent) => {
+      const graph = parseGraph(body.graph);
+
+      runPipeline({ goal, writeBack, selections, graph }, (traceEvent) => {
         send("trace", traceEvent);
       })
         .then((result) => {
