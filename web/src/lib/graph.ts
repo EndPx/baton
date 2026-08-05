@@ -10,7 +10,7 @@ import "server-only";
  */
 
 import { STAGE_BY_KIND, type Lane, type StageKind } from "@/lib/nodes/registry";
-import { STAGE_HANDLERS, type RunState } from "@/lib/stages";
+import { STAGE_HANDLERS, platformFromUrn, type RunState } from "@/lib/stages";
 import type { PublishResult, TraceEvent, TraceEmitter } from "@/lib/baton";
 
 export interface RunGraphNode {
@@ -185,11 +185,14 @@ export async function runGraph(
       node: "handoff",
       type: "pipeline_complete",
       // Not every pipeline makes files — a documentation run's deliverable is
-      // the catalog itself. Report what this graph actually produced.
+      // the catalog itself. Report what this graph actually produced, and say
+      // "drafted" rather than "published" when write-back was switched off.
       label: `Done: ${
         [
           state.files.length && `${state.files.length} file${state.files.length === 1 ? "" : "s"} ready`,
-          state.describedUrns.length && `${state.describedUrns.length} dataset(s) described`,
+          state.describedUrns.length
+            ? `${state.describedUrns.length} description(s) published`
+            : state.docs.length && `${state.docs.length} description(s) drafted`,
           state.taggedUrns.length && `${state.taggedUrns.length} dataset(s) tagged`,
         ]
           .filter(Boolean)
@@ -199,11 +202,23 @@ export async function runGraph(
     order[order.length - 1]?.id ?? "",
   );
 
+  // Drafts travel with the result even when write-back is off, so the work the
+  // Codegen lane did is something the user can read and copy either way.
+  const published = new Set(state.describedUrns);
+
   return {
     files: state.files,
+    documents: state.docs.map((doc) => ({
+      urn: doc.urn,
+      name: doc.name,
+      platform: platformFromUrn(doc.urn),
+      description: doc.description,
+      published: published.has(doc.urn),
+    })),
     writeBack: {
       enabled: state.writeBack,
       taggedUrns: state.taggedUrns,
+      describedUrns: state.describedUrns,
       errors: state.writeBackErrors,
     },
   };

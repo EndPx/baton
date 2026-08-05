@@ -104,12 +104,28 @@ export interface GeneratedFile {
   content: string;
 }
 
+/**
+ * A description drafted for a dataset. It is a deliverable in its own right:
+ * with write-back off the draft is the only thing a documentation run
+ * produces, so it has to reach the user instead of dying inside the pipeline.
+ */
+export interface DraftedDocument {
+  urn: string;
+  name: string;
+  platform: string;
+  description: string;
+  /** True once it was actually published onto the dataset in DataHub. */
+  published: boolean;
+}
+
 /** Final pipeline output surfaced to the user. */
 export interface PublishResult {
   files: GeneratedFile[];
+  documents: DraftedDocument[];
   writeBack: {
     enabled: boolean;
     taggedUrns: string[];
+    describedUrns: string[];
     errors: string[];
   };
 }

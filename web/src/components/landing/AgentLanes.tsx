@@ -58,7 +58,7 @@ const LANES = [
       "Tags the source datasets so the catalog records what fed this run",
       "Publishes generated descriptions back onto the datasets themselves",
     ],
-    handsOff: "PublishResult { files, writeBack }",
+    handsOff: "PublishResult { files, documents, writeBack }",
     edgeTitle: "Why it is its own agent",
     edgeBody:
       "This is the only lane that can change anything outside Baton, which keeps the blast radius in one place: write-back is a switch you control, and nothing reaches your catalog until the SQL has passed validation. It is also the step that makes the next run start smarter than this one.",

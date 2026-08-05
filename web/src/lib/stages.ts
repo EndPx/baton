@@ -91,7 +91,7 @@ interface SchemaFieldsResponse {
   }>;
 }
 
-function platformFromUrn(urn: string): string {
+export function platformFromUrn(urn: string): string {
   return urn.match(/dataPlatform:([a-zA-Z0-9_-]+)/)?.[1] ?? "unknown";
 }
 

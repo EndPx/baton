@@ -112,12 +112,14 @@ models:
 `,
     },
   ],
+  documents: [],
   writeBack: {
     enabled: true,
     taggedUrns: [
       "urn:li:dataset:(urn:li:dataPlatform:dbt,demo.fact_orders,PROD)",
       "urn:li:dataset:(urn:li:dataPlatform:dbt,demo.dim_customers,PROD)",
     ],
+    describedUrns: [],
     errors: [],
   },
 };

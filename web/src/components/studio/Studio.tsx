@@ -724,7 +724,14 @@ function StudioInner() {
               <span>{summary.stagesDone} stages</span>
               {result && (
                 <span className="text-emerald-400">
-                  {result.files.length} files
+                  {[
+                    result.files.length &&
+                      `${result.files.length} file${result.files.length === 1 ? "" : "s"}`,
+                    result.documents.length &&
+                      `${result.documents.length} description${result.documents.length === 1 ? "" : "s"}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "no output"}
                 </span>
               )}
               {runState === "running" && (
@@ -826,7 +833,8 @@ function StudioInner() {
               )}
               {!result && !errorMsg && (
                 <p className="text-xs text-slate-500">
-                  Generated files appear here when the relay finishes.
+                  Generated files and drafted descriptions appear here when the
+                  relay finishes.
                 </p>
               )}
               {result?.files.map((file) => (
@@ -849,11 +857,50 @@ function StudioInner() {
                   </pre>
                 </div>
               ))}
+              {/* A documentation run makes no files — its deliverable is prose. */}
+              {result?.documents.map((doc) => (
+                <div key={doc.urn} className="mb-3">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="truncate font-mono text-[11px] text-emerald-300">
+                      {doc.name} · {doc.platform}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span
+                        className={
+                          doc.published
+                            ? "text-[10px] text-emerald-400"
+                            : "text-[10px] text-amber-400"
+                        }
+                      >
+                        {doc.published ? "published" : "draft"}
+                      </span>
+                      <button
+                        className="rounded bg-slate-800 px-2 py-0.5 text-[10px] hover:bg-slate-700"
+                        onClick={() =>
+                          navigator.clipboard.writeText(doc.description)
+                        }
+                      >
+                        Copy
+                      </button>
+                    </span>
+                  </div>
+                  <p className="rounded-lg border border-slate-800 bg-slate-900 p-2.5 text-[11px] leading-relaxed text-slate-300">
+                    {doc.description}
+                  </p>
+                </div>
+              ))}
               {result?.writeBack.enabled && (
                 <p className="text-[11px] text-emerald-400">
-                  ✓ Provenance written back:{" "}
-                  {result.writeBack.taggedUrns.length} dataset(s) tagged in
-                  DataHub
+                  ✓ Written back to DataHub:{" "}
+                  {[
+                    result.writeBack.taggedUrns.length &&
+                      `${result.writeBack.taggedUrns.length} dataset(s) tagged`,
+                    result.writeBack.describedUrns.length &&
+                      `${result.writeBack.describedUrns.length} description(s) published`,
+                  ]
+                    .filter(Boolean)
+                    .join(", ") ||
+                    "nothing — no publisher stage produced a change"}
                 </p>
               )}
             </div>
