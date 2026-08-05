@@ -20,6 +20,11 @@ JINJA_REF = re.compile(r"\{\{\s*ref\(\s*['\"]([\w.]+)['\"]\s*\)\s*\}\}")
 JINJA_SOURCE = re.compile(
     r"\{\{\s*source\(\s*['\"]([\w.]+)['\"]\s*,\s*['\"]([\w.]+)['\"]\s*\)\s*\}\}"
 )
+# Anything still wearing Jinja after ref()/source() are resolved. A macro like
+# {{ filter_orders() }} cannot be checked against the catalog, and sqlglot will
+# happily parse the leftover braces into something meaningless — so the model
+# gets told to write real SQL instead of being handed a passing verdict.
+JINJA_LEFTOVER = re.compile(r"\{\{.*?\}\}|\{%.*?%\}", re.DOTALL)
 
 
 class ValidateRequest(BaseModel):
@@ -44,6 +49,20 @@ def health() -> dict:
 @app.post("/validate")
 def validate(req: ValidateRequest) -> dict:
     sql = strip_dbt_jinja(req.sql)
+
+    leftover = sorted(set(JINJA_LEFTOVER.findall(sql)))
+    if leftover:
+        return {
+            "valid": False,
+            "stage": "jinja",
+            "errors": [
+                f"Unsupported dbt template expression {m.strip()} — only "
+                "{{ ref('model') }} and {{ source('src', 'table') }} can be "
+                "resolved against the catalog. Write plain SQL instead."
+                for m in leftover
+            ],
+            "columns_used": [], "tables_used": [], "output_columns": [],
+        }
 
     try:
         tree = sqlglot.parse_one(sql, dialect=req.dialect)

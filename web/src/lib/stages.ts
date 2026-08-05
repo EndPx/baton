@@ -229,7 +229,7 @@ async function postValidator(
   if (!res.ok) throw new Error(`Validator service error: HTTP ${res.status}`);
   const body = (await res.json()) as {
     valid: boolean;
-    stage: "parse" | "qualify" | null;
+    stage: "jinja" | "parse" | "qualify" | null;
     errors: string[];
     columns_used: string[];
     tables_used: string[];
@@ -291,8 +291,12 @@ async function generateSql(
 Hard constraints:
 - Only reference the tables and columns listed in the schema map below. Never invent columns.
 - Reference source tables with dbt ref() macros: {{ ref('<table_name>') }}.
+- {{ ref(...) }} and {{ source(...) }} are the ONLY templating allowed. Never call or invent any other macro — write the logic as plain SQL.
+- Use {{ ref('t') }} only where a table belongs. To qualify a column, give the ref an alias and use the alias.
+- Select columns explicitly. Never use SELECT *, so the model's output columns are known.
 - Target SQL dialect: ${state.dialect}.
 - Output must be a complete, runnable SELECT statement (CTEs allowed).
+- Format the SQL across multiple lines with standard indentation; it goes into a pull request.
 
 Schema map (the only tables/columns that exist):
 ${schemaLines(state.schemaMap)}${
@@ -858,6 +862,9 @@ const packageDbt: StageHandler = async ({ state, emit }) => {
     reported.length > 0 ? reported : (state.validation?.columnsUsed ?? [])
   )
     .map((c) => c.split(".").pop()?.replace(/"/g, "").toLowerCase() ?? c)
+    // `SELECT *` that qualify could not expand comes back as a star, and
+    // "- name: *" is not a column a dbt schema file can describe.
+    .filter((c) => c !== "*" && c.length > 0)
     .filter((v, i, arr) => arr.indexOf(v) === i);
 
   state.files = [
@@ -872,9 +879,13 @@ const packageDbt: StageHandler = async ({ state, emit }) => {
 models:
   - name: ${state.modelName}
     description: >
-      ${(state.notes ?? "").replace(/\n/g, " ")}
-    columns:
-${columns.map((c) => `      - name: ${c}`).join("\n")}
+      ${(state.notes ?? "").replace(/\n/g, " ")}${
+        // Better no columns block than one that describes columns the model
+        // does not return.
+        columns.length > 0
+          ? `\n    columns:\n${columns.map((c) => `      - name: ${c}`).join("\n")}`
+          : ""
+      }
 `,
     },
   ];

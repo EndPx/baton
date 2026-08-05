@@ -68,6 +68,20 @@ def test_output_columns_exclude_the_star_expansion():
     assert "created_at" in used, body["columns_used"]
 
 
+def test_unknown_macro_is_rejected():
+    """A macro that is not ref()/source() cannot be resolved against the
+    catalog, so it must not be handed a passing verdict."""
+    r = client.post("/validate", json={
+        "sql": "with f as ({{ filter_orders() }}) select * from f",
+        "schema_map": SCHEMA,
+        "dialect": "snowflake",
+    })
+    body = r.json()
+    assert body["valid"] is False, body
+    assert body["stage"] == "jinja"
+    assert any("filter_orders" in e for e in body["errors"]), body["errors"]
+
+
 def test_parse_error_fails():
     r = client.post("/validate", json={
         "sql": "selec broken from",
