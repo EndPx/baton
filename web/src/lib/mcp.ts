@@ -70,8 +70,20 @@ export async function callTool<T = unknown>(
   args: Record<string, unknown>,
   options: { tolerateError?: boolean } = {},
 ): Promise<ToolCallResult<T>> {
-  const client = await getMcpClient();
-  const result = await client.callTool({ name, arguments: args });
+  // The sidecar is spawned on the first call, and that spawn plus the MCP
+  // handshake can outrun the request timeout — a judge opening the demo just
+  // after a restart would have met "Request timed out" on their first run.
+  // The cached client is dropped so the retry rebuilds it rather than reusing
+  // a half-open one.
+  let result;
+  try {
+    result = await (await getMcpClient()).callTool({ name, arguments: args });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!/timed out|timeout/i.test(message)) throw err;
+    clientPromise = null;
+    result = await (await getMcpClient()).callTool({ name, arguments: args });
+  }
 
   const content = Array.isArray(result.content) ? result.content : [];
   const raw = content
