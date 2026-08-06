@@ -59,9 +59,18 @@ export async function ensureTag(
   id: string,
   description: string,
 ): Promise<string> {
-  const result = await graphql<{ createTag: string }>(
-    `mutation($input: CreateTagInput!) { createTag(input: $input) }`,
-    { input: { id, name: id, description } },
-  );
-  return result.createTag;
+  try {
+    const result = await graphql<{ createTag: string }>(
+      `mutation($input: CreateTagInput!) { createTag(input: $input) }`,
+      { input: { id, name: id, description } },
+    );
+    return result.createTag;
+  } catch (err) {
+    // The tag already being there is the state this function exists to reach,
+    // not a failure. Treating it as one made every run after the very first
+    // report "Tagged 2, 1 failure(s)" for a write-back that fully succeeded.
+    const message = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(message)) return `urn:li:tag:${id}`;
+    throw err;
+  }
 }
