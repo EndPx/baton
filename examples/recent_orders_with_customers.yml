@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: recent_orders_with_customers
+    description: >
+      This model joins orders and customers, filtered to the last 90 days.
+    columns:
+      - name: order_id
+      - name: order_date
+      - name: order_total
+      - name: cust_first_name
+      - name: cust_last_name
+      - name: address_line1
+      - name: address_line2
+      - name: address_line3
+      - name: town_city
+      - name: zipcode
