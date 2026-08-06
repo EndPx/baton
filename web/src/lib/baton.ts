@@ -83,7 +83,7 @@ export interface BatonContext {
 
 export interface ValidationReport {
   valid: boolean;
-  stage: "jinja" | "parse" | "qualify" | null;
+  stage: "jinja" | "parse" | "shape" | "qualify" | null;
   errors: string[];
   /** Every column the query references, including `SELECT *` expansions. */
   columnsUsed: string[];

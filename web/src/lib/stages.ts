@@ -229,7 +229,7 @@ async function postValidator(
   if (!res.ok) throw new Error(`Validator service error: HTTP ${res.status}`);
   const body = (await res.json()) as {
     valid: boolean;
-    stage: "jinja" | "parse" | "qualify" | null;
+    stage: "jinja" | "parse" | "shape" | "qualify" | null;
     errors: string[];
     columns_used: string[];
     tables_used: string[];

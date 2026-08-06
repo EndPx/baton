@@ -65,10 +65,33 @@ def validate(req: ValidateRequest) -> dict:
         }
 
     try:
-        tree = sqlglot.parse_one(sql, dialect=req.dialect)
+        statements = [s for s in sqlglot.parse(sql, dialect=req.dialect) if s]
     except ParseError as e:
         return {"valid": False, "stage": "parse", "errors": [str(e)],
                 "columns_used": [], "tables_used": [], "output_columns": []}
+
+    # A dbt model is exactly one SELECT. parse_one would silently keep only the
+    # first statement, so "select 1; drop table orders" validated clean and the
+    # drop still shipped in the file. And a bare DROP/DELETE/INSERT qualifies
+    # without complaint, which would have put a destructive statement under a
+    # header claiming it was validated against the live schema.
+    if len(statements) != 1:
+        return {
+            "valid": False, "stage": "shape",
+            "errors": [f"A dbt model must be a single statement; found {len(statements)}."],
+            "columns_used": [], "tables_used": [], "output_columns": [],
+        }
+
+    tree = statements[0]
+    if not isinstance(tree, exp.Query):
+        return {
+            "valid": False, "stage": "shape",
+            "errors": [
+                f"A dbt model must be a SELECT; found {tree.key.upper()}. "
+                "Models describe a result set, they do not modify the warehouse."
+            ],
+            "columns_used": [], "tables_used": [], "output_columns": [],
+        }
 
     try:
         qualified = qualify(

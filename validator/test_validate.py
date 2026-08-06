@@ -82,6 +82,31 @@ def test_unknown_macro_is_rejected():
     assert any("filter_orders" in e for e in body["errors"]), body["errors"]
 
 
+def test_non_select_is_rejected():
+    """A model describes a result set. Certifying a DROP would put a
+    destructive statement under a "validated against the live schema" header."""
+    for stmt in ("drop table orders",
+                 "delete from orders where 1=1",
+                 "insert into orders values (1, 2, 3.0, current_timestamp)"):
+        body = client.post("/validate", json={
+            "sql": stmt, "schema_map": SCHEMA, "dialect": "snowflake",
+        }).json()
+        assert body["valid"] is False, (stmt, body)
+        assert body["stage"] == "shape", (stmt, body)
+
+
+def test_trailing_statement_cannot_be_smuggled():
+    """parse_one kept only the first statement, so the drop rode along in the
+    packaged file having never been looked at."""
+    body = client.post("/validate", json={
+        "sql": "select order_id from {{ ref('orders') }}; drop table orders",
+        "schema_map": SCHEMA,
+        "dialect": "snowflake",
+    }).json()
+    assert body["valid"] is False, body
+    assert body["stage"] == "shape", body
+
+
 def test_parse_error_fails():
     r = client.post("/validate", json={
         "sql": "selec broken from",
